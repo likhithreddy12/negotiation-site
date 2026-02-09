@@ -88,7 +88,7 @@ export default function Home() {
       <section id="contact" style={{ marginTop: 70, marginBottom: 80 }}>
         <h2 style={{ fontSize: 28 }}>Contact</h2>
         <p style={{ lineHeight: 1.6 }}>
-          For research/demo access, contact: <b>yourname@university.edu</b>
+          For research/demo access, contact: <b>yushanl@udel.edu</b>
         </p>
       </section>
     </main>
