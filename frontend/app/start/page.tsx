@@ -36,7 +36,7 @@ export default function StartPage() {
       })
     );
 
-    router.push("/demo");
+    router.push("/select-avatar");
   };
 
   return (
