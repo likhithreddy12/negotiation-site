@@ -22,7 +22,7 @@ export default function Home() {
 
         <div style={{ display: "flex", gap: 12, marginTop: 22 }}>
           <a
-            href="/demo"
+            href="/start"
             style={{
               display: "inline-block",
               padding: "12px 16px",
@@ -33,7 +33,7 @@ export default function Home() {
               fontWeight: 700,
             }}
           >
-            Open Demo
+            Start
           </a>
           <a
             href="#how"
