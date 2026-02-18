@@ -35,7 +35,17 @@ export default function DemoPage() {
         <p><b>Name:</b> {intake.fullName}</p>
         <p><b>Email:</b> {intake.email}</p>
         <p><b>Topic:</b> {intake.description}</p>
-        <p><b>Selected AI:</b> {intake.avatar ?? "not selected"}</p>
+        <p>
+       <b>Selected AI:</b>{" "}
+       {intake.avatar ? (
+       <>
+       {intake.avatar} {intake.avatar === "male" ? "🤵‍♂️" : "👩‍💼"}
+       </>
+       ) : (
+        "not selected"
+       )}
+</p>
+
       </div>
     </main>
   );
