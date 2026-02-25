@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 
 export default function StartPage() {
   const router = useRouter();
@@ -9,6 +9,15 @@ export default function StartPage() {
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
   const [error, setError] = useState("");
+  const [hasConfig, setHasConfig] = useState(true);
+
+  // ✅ Check if configuration exists
+  useEffect(() => {
+    const config = localStorage.getItem("car_config_weights");
+    if (!config) {
+      setHasConfig(false);
+    }
+  }, []);
 
   const isValidEmail = (v: string) =>
     /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v.trim());
@@ -24,7 +33,6 @@ export default function StartPage() {
     if (!mail || !isValidEmail(mail))
       return setError("Please enter a valid email.");
 
-    // Save only name + email
     localStorage.setItem(
       "negotiation_intake",
       JSON.stringify({
@@ -36,6 +44,32 @@ export default function StartPage() {
 
     router.push("/select-avatar");
   };
+
+  // 🚨 If configuration is missing
+  if (!hasConfig) {
+    return (
+      <div style={{ maxWidth: 720, margin: "40px auto", padding: 16 }}>
+        <h1 style={{ fontSize: 28, fontWeight: 800 }}>
+          Configuration Required
+        </h1>
+        <p style={{ marginTop: 8 }}>
+          Please configure your negotiation priorities before starting.
+        </p>
+        <button
+          onClick={() => router.push("/")}
+          style={{
+            marginTop: 16,
+            padding: 10,
+            fontWeight: 800,
+            cursor: "pointer",
+            borderRadius: 8,
+          }}
+        >
+          Go Back to Configuration
+        </button>
+      </div>
+    );
+  }
 
   return (
     <div style={{ maxWidth: 720, margin: "40px auto", padding: 16 }}>
