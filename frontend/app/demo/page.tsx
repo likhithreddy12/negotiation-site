@@ -17,15 +17,6 @@ type Weights = {
   safety?: number;
 };
 
-function getTopPriorities(weights: Weights) {
-  const entries = Object.entries(weights)
-    .filter(([, v]) => typeof v === "number")
-    .map(([k, v]) => ({ key: k, value: v as number }))
-    .sort((a, b) => b.value - a.value);
-
-  return entries.slice(0, 2);
-}
-
 function labelKey(k: string) {
   switch (k) {
     case "price":
@@ -43,17 +34,45 @@ function labelKey(k: string) {
   }
 }
 
+function formatStrategyLabel(strategy: string) {
+  switch (strategy) {
+    case "tough":
+      return "Tough";
+    case "soft":
+      return "Soft";
+    case "friendly":
+      return "Friendly";
+    case "analytical":
+      return "Analytical";
+    case "urgent":
+      return "Urgent";
+    case "balanced":
+      return "Balanced";
+    default:
+      return strategy;
+  }
+}
+
+function getAllPriorities(weights: Weights) {
+  return Object.entries(weights)
+    .filter(([, v]) => typeof v === "number")
+    .map(([k, v]) => ({ key: k, value: v as number }))
+    .sort((a, b) => b.value - a.value);
+}
+
 export default function DemoPage() {
   const router = useRouter();
   const [intake, setIntake] = useState<Intake | null>(null);
   const [weights, setWeights] = useState<Weights | null>(null);
+  const [selectedStrategy, setSelectedStrategy] = useState("balanced");
 
   useEffect(() => {
     const storedIntake = localStorage.getItem("negotiation_intake");
     const storedWeights = localStorage.getItem("car_config_weights");
+    const storedStrategy = localStorage.getItem("selected_strategy");
 
     if (!storedWeights) {
-      router.replace("/"); // force user to set configuration first
+      router.replace("/");
       return;
     }
 
@@ -64,60 +83,95 @@ export default function DemoPage() {
 
     setIntake(JSON.parse(storedIntake));
     setWeights(JSON.parse(storedWeights));
+
+    if (storedStrategy) {
+      setSelectedStrategy(storedStrategy);
+    }
   }, [router]);
 
-  const top2 = useMemo(() => (weights ? getTopPriorities(weights) : []), [weights]);
+  const allPriorities = useMemo(
+    () => (weights ? getAllPriorities(weights) : []),
+    [weights]
+  );
 
   if (!intake || !weights) return null;
 
   return (
-    <main style={{ maxWidth: 900, margin: "60px auto", padding: 20, color: "#fff" }}>
-      <h1 style={{ fontSize: 36, marginBottom: 20 }}>Negotiation Chat</h1>
+    <main className="min-h-screen bg-black px-4 py-10 text-white sm:px-6 md:px-10">
+      <div className="mx-auto w-full max-w-4xl">
+        <h1 className="mb-6 text-3xl font-bold text-white sm:text-4xl">
+          Negotiation Chat
+        </h1>
 
-      <div
-        style={{
-          border: "1px solid rgba(255,255,255,0.2)",
-          padding: 20,
-          borderRadius: 14,
-          background: "rgba(255,255,255,0.06)",
-        }}
-      >
-        <h2 style={{ marginTop: 0, marginBottom: 12, fontSize: 18 }}>Negotiation Profile</h2>
+        <div className="rounded-2xl border border-white/20 bg-white/10 p-5 shadow-lg backdrop-blur-sm sm:p-6">
+          <h2 className="mb-4 text-xl font-semibold text-white">
+            Negotiation Profile
+          </h2>
 
-        <p>
-          <b>Name:</b> {intake.fullName}
-        </p>
-        <p>
-          <b>Email:</b> {intake.email}
-        </p>
+          <div className="space-y-3 text-sm sm:text-base">
+            <p className="text-white">
+              <span className="font-semibold text-white">Name:</span> {intake.fullName}
+            </p>
 
-        <p>
-          <b>Selected AI:</b>{" "}
-          {intake.avatar ? (
-            <>
-              {intake.avatar} {intake.avatar === "male" ? "🤵‍♂️" : "👩‍💼"}
-            </>
-          ) : (
-            "not selected"
-          )}
-        </p>
+            <p className="text-white">
+              <span className="font-semibold text-white">Email:</span> {intake.email}
+            </p>
 
-        <p style={{ marginTop: 14 }}>
-          <b>Top Priorities:</b>{" "}
-          {top2.length ? (
-            <>
-              {labelKey(top2[0].key)} ({top2[0].value}%){" "}
-              {top2[1] ? `, ${labelKey(top2[1].key)} (${top2[1].value}%)` : ""}
-            </>
-          ) : (
-            "not set"
-          )}
-        </p>
+            <p className="text-white">
+              <span className="font-semibold text-white">Selected AI:</span>{" "}
+              {intake.avatar ? (
+                <>
+                  {intake.avatar} {intake.avatar === "male" ? "🤵‍♂️" : "👩‍💼"}
+                </>
+              ) : (
+                "not selected"
+              )}
+            </p>
 
-        <p style={{ marginTop: 14, opacity: 0.85, lineHeight: 1.5 }}>
-          ✅ The chatbot will negotiate using your configuration weights as the main decision rules
-          (what to push hard on and what to compromise on).
-        </p>
+            <p className="text-white">
+              <span className="font-semibold text-white">Selected Strategy:</span>{" "}
+              {formatStrategyLabel(selectedStrategy)}
+            </p>
+          </div>
+
+          <div className="mt-6">
+            <h3 className="mb-3 text-lg font-semibold text-white">
+              Full Configuration Weights
+            </h3>
+
+            <div className="space-y-3">
+              {allPriorities.map((item) => (
+                <div
+                  key={item.key}
+                  className="rounded-xl border border-white/15 bg-white/5 p-4"
+                >
+                  <div className="mb-2 flex items-center justify-between gap-4">
+                    <span className="text-sm font-medium text-white sm:text-base">
+                      {labelKey(item.key)}
+                    </span>
+                    <span className="text-sm font-bold text-blue-300 sm:text-base">
+                      {item.value}%
+                    </span>
+                  </div>
+
+                  <div className="h-2 w-full rounded-full bg-white/15">
+                    <div
+                      className="h-2 rounded-full bg-blue-500"
+                      style={{ width: `${item.value}%` }}
+                    />
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className="mt-5 rounded-xl border border-blue-400/30 bg-blue-500/10 p-4">
+            <p className="text-sm leading-6 text-blue-100 sm:text-base">
+              ✅ The chatbot will use your selected negotiation strategy together
+              with your complete configuration weights across all five factors.
+            </p>
+          </div>
+        </div>
       </div>
     </main>
   );
