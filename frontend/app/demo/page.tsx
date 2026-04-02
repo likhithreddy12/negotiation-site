@@ -25,6 +25,7 @@ export default function DemoPage() {
     formValues: Record<string, string>;
     weights: Record<string, number>;
   } | null>(null);
+  const [selectedAvatar, setSelectedAvatar] = useState<"male" | "female" | "">("");
   const [message, setMessage] = useState("");
   const [messages, setMessages] = useState<ChatMessage[]>([]);
 
@@ -37,6 +38,11 @@ export default function DemoPage() {
     const storedUserConfig = localStorage.getItem("user_topic_config");
     if (storedUserConfig) {
       setUserConfig(JSON.parse(storedUserConfig));
+    }
+
+    const storedAvatar = localStorage.getItem("selected_avatar");
+    if (storedAvatar === "male" || storedAvatar === "female") {
+      setSelectedAvatar(storedAvatar);
     }
   }, []);
 
@@ -62,7 +68,7 @@ export default function DemoPage() {
       topic: activeTopic,
       strategy: adminSettings.selectedStrategy,
       topFactors,
-      formValues: userConfig?.formValues || {},
+      selectedAvatar,
     });
 
     setMessages((prev) => [
@@ -88,41 +94,22 @@ export default function DemoPage() {
         <p style={{ color: "#cbd5e1", marginBottom: 8 }}>
           Strategy: <strong>{adminSettings.selectedStrategy}</strong>
         </p>
+        <p style={{ color: "#cbd5e1", marginBottom: 8 }}>
+          AI Chatbot: <strong>{selectedAvatar || "Not selected"}</strong>
+        </p>
         <p style={{ color: "#cbd5e1", marginBottom: 24 }}>
           Top priorities: <strong>{topFactors.join(", ") || "Default priorities"}</strong>
         </p>
 
         <section style={boxStyle}>
-          <h2 style={{ fontSize: 24, marginBottom: 14 }}>Selected Configuration</h2>
+          <h2 style={{ fontSize: 24, marginBottom: 14 }}>Selected Weights</h2>
 
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))",
-              gap: 16,
-            }}
-          >
-            <div style={innerBox}>
-              <h3 style={{ marginBottom: 10 }}>Inputs</h3>
-              {Object.entries(userConfig?.formValues || {}).length === 0 ? (
-                <p style={{ color: "#94a3b8" }}>No details entered yet.</p>
-              ) : (
-                Object.entries(userConfig?.formValues || {}).map(([key, value]) => (
-                  <div key={key} style={{ marginBottom: 8, color: "#cbd5e1" }}>
-                    • {key}: {value}
-                  </div>
-                ))
-              )}
-            </div>
-
-            <div style={innerBox}>
-              <h3 style={{ marginBottom: 10 }}>Weights</h3>
-              {topicConfig.factors.map((factor) => (
-                <div key={factor.key} style={{ marginBottom: 8, color: "#cbd5e1" }}>
-                  • {factor.label}: {userConfig?.weights?.[factor.key] ?? factor.defaultWeight}
-                </div>
-              ))}
-            </div>
+          <div style={innerBox}>
+            {topicConfig.factors.map((factor) => (
+              <div key={factor.key} style={{ marginBottom: 8, color: "#cbd5e1" }}>
+                • {factor.label}: {userConfig?.weights?.[factor.key] ?? factor.defaultWeight}
+              </div>
+            ))}
           </div>
         </section>
 
@@ -142,7 +129,7 @@ export default function DemoPage() {
             {messages.length === 0 ? (
               <p style={{ color: "#94a3b8" }}>
                 Start the conversation. The chatbot will respond using the selected topic,
-                strategy, and your weight preferences.
+                strategy, avatar, and your weight preferences.
               </p>
             ) : (
               messages.map((item, index) => (
@@ -198,18 +185,22 @@ function generateBotReply({
   topic,
   strategy,
   topFactors,
-  formValues,
+  selectedAvatar,
 }: {
   userMessage: string;
   topic: TopicKey;
   strategy: StrategyKey;
   topFactors: string[];
-  formValues: Record<string, string>;
+  selectedAvatar: string;
 }) {
   const factorText = topFactors.length ? topFactors.join(" and ") : "your chosen priorities";
-  const userContext = Object.entries(formValues)
-    .map(([key, value]) => `${key}: ${value}`)
-    .join(", ");
+
+  const avatarLine =
+    selectedAvatar === "male"
+      ? "You are interacting with the male AI chatbot."
+      : selectedAvatar === "female"
+      ? "You are interacting with the female AI chatbot."
+      : "No AI chatbot persona was selected.";
 
   const strategyLine =
     strategy === "tough"
@@ -235,7 +226,7 @@ function generateBotReply({
       ? "For this job negotiation, I would weigh salary against benefits, growth, and work-life balance."
       : "For this rent negotiation, I would compare rent price with location, amenities, and lease flexibility.";
 
-  return `You asked: "${userMessage}". ${topicLine} Your highest priorities are ${factorText}. ${strategyLine} Based on your current configuration (${userContext || "no extra details provided"}), I would guide the negotiation around those priorities first.`;
+  return `You asked: "${userMessage}". ${avatarLine} ${topicLine} Your highest priorities are ${factorText}. ${strategyLine}`;
 }
 
 const boxStyle = {

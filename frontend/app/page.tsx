@@ -98,15 +98,15 @@ export default function HomePage() {
             <div style={cardStyle}>
               <h3 style={{ marginBottom: 8 }}>User Preference Weightage</h3>
               <p style={{ color: "#cbd5e1", lineHeight: 1.5 }}>
-                Users can adjust 5 weights based on their individual priorities, with a total of
-                100.
+                Users can adjust 5 weights based on their individual priorities, and the total
+                always stays at 100.
               </p>
             </div>
 
             <div style={cardStyle}>
-              <h3 style={{ marginBottom: 8 }}>Interactive Negotiation Chat</h3>
+              <h3 style={{ marginBottom: 8 }}>Male and Female AI Chatbots</h3>
               <p style={{ color: "#cbd5e1", lineHeight: 1.5 }}>
-                The chatbot responds using the selected topic, chosen strategy, and user inputs.
+                Users can select either a male or female AI chatbot before entering the demo chat.
               </p>
             </div>
           </div>
@@ -116,13 +116,9 @@ export default function HomePage() {
           <h2 style={{ fontSize: 32, marginBottom: 20 }}>How It Works</h2>
           <div style={{ display: "grid", gap: 14 }}>
             <div style={cardStyle}>1. Admin selects the active topic and AI strategy.</div>
-            <div style={cardStyle}>2. Users enter topic-specific details.</div>
-            <div style={cardStyle}>
-              3. Users adjust the 5 factor weights so the total equals 100.
-            </div>
-            <div style={cardStyle}>
-              4. The chatbot uses those preferences during the interaction.
-            </div>
+            <div style={cardStyle}>2. User adjusts the 5 factor weights.</div>
+            <div style={cardStyle}>3. User selects male or female AI chatbot.</div>
+            <div style={cardStyle}>4. The chatbot responds using the selected strategy and weights.</div>
           </div>
         </section>
 
