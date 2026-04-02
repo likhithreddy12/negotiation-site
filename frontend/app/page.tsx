@@ -1,34 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
-import {
-  DEFAULT_ADMIN_SETTINGS,
-  TOPIC_CONFIGS,
-  TopicKey,
-  StrategyKey,
-} from "../lib/negotiation-config";
-
-type AdminSettings = {
-  activeTopic: TopicKey;
-  selectedStrategy: StrategyKey;
-};
 
 export default function HomePage() {
-  const [adminSettings, setAdminSettings] = useState<AdminSettings>(DEFAULT_ADMIN_SETTINGS);
-
-  useEffect(() => {
-    const stored = localStorage.getItem("admin_settings");
-    if (stored) {
-      setAdminSettings(JSON.parse(stored));
-    }
-  }, []);
-
-  const topicConfig = useMemo(
-    () => TOPIC_CONFIGS[adminSettings.activeTopic],
-    [adminSettings.activeTopic]
-  );
-
   return (
     <main
       style={{
@@ -49,7 +23,9 @@ export default function HomePage() {
             marginBottom: 40,
           }}
         >
-          <div style={{ fontSize: 28, fontWeight: 700 }}>{topicConfig.navTitle}</div>
+          <div style={{ fontSize: 28, fontWeight: 700 }}>
+            AI Sales Negotiation Agent
+          </div>
 
           <nav style={{ display: "flex", gap: 18, alignItems: "center", flexWrap: "wrap" }}>
             <a href="#features" style={navLink}>
@@ -76,28 +52,18 @@ export default function HomePage() {
             marginBottom: 40,
           }}
         >
-          <p
-            style={{
-              display: "inline-block",
-              padding: "6px 12px",
-              borderRadius: 999,
-              border: "1px solid #333",
-              marginBottom: 16,
-              fontSize: 14,
-            }}
-          >
-            Active Topic: {adminSettings.activeTopic.toUpperCase()} | Strategy:{" "}
-            {adminSettings.selectedStrategy.toUpperCase()}
-          </p>
+          <h1 style={{ fontSize: 44, marginBottom: 16 }}>
+            AI Negotiation Assistant
+          </h1>
 
-          <h1 style={{ fontSize: 44, marginBottom: 16 }}>{topicConfig.heroTitle}</h1>
           <p style={{ fontSize: 18, color: "#d1d5db", maxWidth: 850, lineHeight: 1.6 }}>
-            {topicConfig.heroSubtitle}
+            Practice real-world negotiation scenarios with an AI-powered assistant that adapts
+            to your strategy, preferences, and decision-making style.
           </p>
 
           <div style={{ marginTop: 24, display: "flex", gap: 14, flexWrap: "wrap" }}>
             <Link href="/start" style={primaryButton}>
-              {topicConfig.startButtonText}
+              Start Negotiation
             </Link>
 
             <Link href="/demo" style={secondaryButton}>
@@ -115,14 +81,34 @@ export default function HomePage() {
               gap: 18,
             }}
           >
-            {topicConfig.factors.map((factor) => (
-              <div key={factor.key} style={cardStyle}>
-                <h3 style={{ marginBottom: 8 }}>{factor.label}</h3>
-                <p style={{ color: "#cbd5e1", lineHeight: 1.5 }}>
-                  Default weight: <strong>{factor.defaultWeight}</strong>
-                </p>
-              </div>
-            ))}
+            <div style={cardStyle}>
+              <h3 style={{ marginBottom: 8 }}>Admin-Controlled Topics</h3>
+              <p style={{ color: "#cbd5e1", lineHeight: 1.5 }}>
+                The professor can choose the active negotiation topic from a secure admin page.
+              </p>
+            </div>
+
+            <div style={cardStyle}>
+              <h3 style={{ marginBottom: 8 }}>Multiple AI Strategies</h3>
+              <p style={{ color: "#cbd5e1", lineHeight: 1.5 }}>
+                Switch between balanced, soft, tough, friendly, analytical, and urgent styles.
+              </p>
+            </div>
+
+            <div style={cardStyle}>
+              <h3 style={{ marginBottom: 8 }}>User Preference Weightage</h3>
+              <p style={{ color: "#cbd5e1", lineHeight: 1.5 }}>
+                Users can adjust 5 weights based on their individual priorities, with a total of
+                100.
+              </p>
+            </div>
+
+            <div style={cardStyle}>
+              <h3 style={{ marginBottom: 8 }}>Interactive Negotiation Chat</h3>
+              <p style={{ color: "#cbd5e1", lineHeight: 1.5 }}>
+                The chatbot responds using the selected topic, chosen strategy, and user inputs.
+              </p>
+            </div>
           </div>
         </section>
 
@@ -130,12 +116,12 @@ export default function HomePage() {
           <h2 style={{ fontSize: 32, marginBottom: 20 }}>How It Works</h2>
           <div style={{ display: "grid", gap: 14 }}>
             <div style={cardStyle}>1. Admin selects the active topic and AI strategy.</div>
-            <div style={cardStyle}>2. The homepage and form update automatically for that topic.</div>
+            <div style={cardStyle}>2. Users enter topic-specific details.</div>
             <div style={cardStyle}>
-              3. The user enters topic-specific details and adjusts the 5 weights to total 100.
+              3. Users adjust the 5 factor weights so the total equals 100.
             </div>
             <div style={cardStyle}>
-              4. The chatbot uses the selected topic, strategy, and user weights in the interaction.
+              4. The chatbot uses those preferences during the interaction.
             </div>
           </div>
         </section>
