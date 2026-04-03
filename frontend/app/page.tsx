@@ -1,363 +1,376 @@
 "use client";
 
-import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 
-type FactorKey = "price" | "reliability" | "fuel" | "horsepower" | "safety";
+type Intake = {
+  fullName: string;
+  email: string;
+  avatar?: string;
+};
+
+type TopicKey = "car" | "laptop" | "mobile" | "job" | "rent";
 type StrategyKey =
+  | "balanced"
   | "tough"
   | "soft"
   | "friendly"
   | "analytical"
-  | "urgent"
-  | "balanced";
+  | "urgent";
 
-const FACTORS: { key: FactorKey; label: string }[] = [
-  { key: "price", label: "Price / Budget" },
-  { key: "reliability", label: "Reliability" },
-  { key: "fuel", label: "Fuel Efficiency" },
-  { key: "horsepower", label: "Horsepower" },
-  { key: "safety", label: "Safety" },
-];
+type WeightState = {
+  factor1: number;
+  factor2: number;
+  factor3: number;
+  factor4: number;
+  factor5: number;
+};
 
-const STRATEGIES: { key: StrategyKey; label: string }[] = [
-  { key: "balanced", label: "Balanced" },
-  { key: "tough", label: "Tough" },
-  { key: "soft", label: "Soft" },
-  { key: "friendly", label: "Friendly" },
-  { key: "analytical", label: "Analytical" },
-  { key: "urgent", label: "Urgent" },
-];
+type ChatMessage = {
+  role: "user" | "assistant";
+  text: string;
+};
 
-const ADMIN_PASSWORD = "professor123";
+const TOPIC_CONFIGS: Record<TopicKey, { label: string; factors: string[] }> = {
+  car: {
+    label: "Car",
+    factors: [
+      "Price",
+      "Fuel Efficiency",
+      "Safety",
+      "Reliability",
+      "Horsepower",
+    ],
+  },
+  laptop: {
+    label: "Laptop",
+    factors: ["Price", "Performance", "RAM", "Battery Life", "Storage"],
+  },
+  mobile: {
+    label: "Mobile",
+    factors: ["Price", "Battery", "Camera", "Performance", "Storage"],
+  },
+  job: {
+    label: "Job",
+    factors: [
+      "Salary",
+      "Work-Life Balance",
+      "Location",
+      "Growth Opportunities",
+      "Benefits",
+    ],
+  },
+  rent: {
+    label: "Rent",
+    factors: ["Price", "Location", "Safety", "Space", "Amenities"],
+  },
+};
 
-function normalizeWeights(
-  changedKey: FactorKey,
-  changedValue: number,
-  current: Record<FactorKey, number>
-) {
-  const next = { ...current, [changedKey]: changedValue };
+function getWeightedPriorities(topic: TopicKey, weights: WeightState) {
+  const factors = TOPIC_CONFIGS[topic].factors;
 
-  const otherKeys = FACTORS.map((f) => f.key).filter((k) => k !== changedKey);
-  const otherTotal = otherKeys.reduce((sum, key) => sum + current[key], 0);
+  const mapped = [
+    { name: factors[0], value: weights.factor1 },
+    { name: factors[1], value: weights.factor2 },
+    { name: factors[2], value: weights.factor3 },
+    { name: factors[3], value: weights.factor4 },
+    { name: factors[4], value: weights.factor5 },
+  ];
 
-  const remaining = 100 - changedValue;
-
-  if (remaining <= 0) {
-    const reset: Record<FactorKey, number> = {
-      price: 0,
-      reliability: 0,
-      fuel: 0,
-      horsepower: 0,
-      safety: 0,
-    };
-    reset[changedKey] = 100;
-    return reset;
-  }
-
-  if (otherTotal === 0) {
-    const equalShare = Math.floor(remaining / otherKeys.length);
-    let leftover = remaining - equalShare * otherKeys.length;
-
-    for (const key of otherKeys) {
-      next[key] = equalShare;
-    }
-
-    for (const key of otherKeys) {
-      if (leftover <= 0) break;
-      next[key] += 1;
-      leftover -= 1;
-    }
-
-    return next;
-  }
-
-  let assigned = 0;
-  for (let i = 0; i < otherKeys.length; i++) {
-    const key = otherKeys[i];
-    if (i === otherKeys.length - 1) {
-      next[key] = remaining - assigned;
-    } else {
-      const proportional = Math.round((current[key] / otherTotal) * remaining);
-      next[key] = proportional;
-      assigned += proportional;
-    }
-  }
-
-  const total = Object.values(next).reduce((a, b) => a + b, 0);
-  const diff = 100 - total;
-  if (diff !== 0) {
-    const lastKey = otherKeys[otherKeys.length - 1];
-    next[lastKey] += diff;
-  }
-
-  return next;
+  return mapped.sort((a, b) => b.value - a.value);
 }
 
-export default function HomePage() {
-  const [weights, setWeights] = useState<Record<FactorKey, number>>({
-    price: 20,
-    reliability: 20,
-    fuel: 20,
-    horsepower: 20,
-    safety: 20,
-  });
+function buildWeightSummary(topic: TopicKey, weights: WeightState) {
+  const sorted = getWeightedPriorities(topic, weights);
 
-  const [adminOpen, setAdminOpen] = useState(false);
-  const [adminPassword, setAdminPassword] = useState("");
-  const [adminUnlocked, setAdminUnlocked] = useState(false);
-  const [selectedStrategy, setSelectedStrategy] =
-    useState<StrategyKey>("balanced");
+  const highest = sorted[0];
+  const second = sorted[1];
+  const third = sorted[2];
+  const lowest = sorted[4];
+
+  return {
+    sorted,
+    highest,
+    second,
+    third,
+    lowest,
+  };
+}
+
+function generateAssistantReply(
+  userMessage: string,
+  topic: TopicKey,
+  strategy: StrategyKey,
+  weights: WeightState
+) {
+  const summary = buildWeightSummary(topic, weights);
+
+  const emphasisSentence = `My main priorities are ${summary.highest.name} (${summary.highest.value}%) and ${summary.second.name} (${summary.second.value}%), while I still care about ${summary.third.name}, ${summary.sorted[3].name}, and ${summary.lowest.name}.`;
+
+  const topicOpeners: Record<TopicKey, string> = {
+    car: "For this car discussion,",
+    laptop: "For this laptop discussion,",
+    mobile: "For this mobile discussion,",
+    job: "For this job discussion,",
+    rent: "For this rental discussion,",
+  };
+
+  const strategyStyles: Record<StrategyKey, string> = {
+    balanced:
+      "I want a fair outcome and I am looking for a practical middle ground.",
+    tough:
+      "I need a stronger offer and I am not willing to compromise easily on my priorities.",
+    soft:
+      "I am open to discussion, but I still want the offer to reflect what matters most to me.",
+    friendly:
+      "I would like to keep this conversation positive and cooperative while still protecting my priorities.",
+    analytical:
+      "I am evaluating this carefully and comparing the offer against my weighted priorities.",
+    urgent:
+      "I need a clear and efficient decision quickly, but it still has to match my main priorities.",
+  };
+
+  const userIntent = userMessage.trim();
+
+  return `${topicOpeners[topic]} ${emphasisSentence} ${strategyStyles[strategy]} Based on what you said — "${userIntent}" — I would respond by giving the strongest importance to ${summary.highest.name}, then ${summary.second.name}, while still considering ${summary.third.name}, ${summary.sorted[3].name}, and ${summary.lowest.name} in the final decision.`;
+}
+
+export default function DemoPage() {
+  const router = useRouter();
+
+  const [intake, setIntake] = useState<Intake | null>(null);
+  const [topic, setTopic] = useState<TopicKey>("car");
+  const [strategy, setStrategy] = useState<StrategyKey>("balanced");
+  const [weights, setWeights] = useState<WeightState | null>(null);
+  const [message, setMessage] = useState("");
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
 
   useEffect(() => {
-    const savedWeights = localStorage.getItem("car_config_weights");
-    const savedStrategy = localStorage.getItem("selected_strategy");
-    const savedAdmin = localStorage.getItem("admin_unlocked");
+    const storedIntake = localStorage.getItem("negotiation_intake");
+    const storedTopic = localStorage.getItem("selected_topic");
+    const storedStrategy = localStorage.getItem("selected_strategy");
+    const storedWeights = localStorage.getItem("topic_weights");
 
-    if (savedWeights) {
-      setWeights(JSON.parse(savedWeights));
+    if (!storedIntake) {
+      router.replace("/start");
+      return;
     }
 
-    if (savedStrategy) {
-      setSelectedStrategy(savedStrategy as StrategyKey);
+    setIntake(JSON.parse(storedIntake));
+
+    if (
+      storedTopic &&
+      ["car", "laptop", "mobile", "job", "rent"].includes(storedTopic)
+    ) {
+      setTopic(storedTopic as TopicKey);
     }
 
-    if (savedAdmin === "true") {
-      setAdminUnlocked(true);
+    if (
+      storedStrategy &&
+      ["balanced", "tough", "soft", "friendly", "analytical", "urgent"].includes(
+        storedStrategy
+      )
+    ) {
+      setStrategy(storedStrategy as StrategyKey);
     }
-  }, []);
 
-  useEffect(() => {
-    localStorage.setItem("car_config_weights", JSON.stringify(weights));
-  }, [weights]);
-
-  useEffect(() => {
-    localStorage.setItem("selected_strategy", selectedStrategy);
-  }, [selectedStrategy]);
-
-  const total = useMemo(
-    () => Object.values(weights).reduce((a, b) => a + b, 0),
-    [weights]
-  );
-
-  function handleSliderChange(key: FactorKey, value: number) {
-    const normalized = normalizeWeights(key, value, weights);
-    setWeights(normalized);
-  }
-
-  function unlockAdmin() {
-    if (adminPassword === ADMIN_PASSWORD) {
-      setAdminUnlocked(true);
-      localStorage.setItem("admin_unlocked", "true");
-      setAdminOpen(false);
-      setAdminPassword("");
+    if (storedWeights) {
+      try {
+        setWeights(JSON.parse(storedWeights));
+      } catch {
+        setWeights({
+          factor1: 20,
+          factor2: 20,
+          factor3: 20,
+          factor4: 20,
+          factor5: 20,
+        });
+      }
     } else {
-      alert("Wrong admin password");
+      setWeights({
+        factor1: 20,
+        factor2: 20,
+        factor3: 20,
+        factor4: 20,
+        factor5: 20,
+      });
     }
+  }, [router]);
+
+  const displayWeights = useMemo(() => {
+    if (!weights) return [];
+
+    const factors = TOPIC_CONFIGS[topic].factors;
+
+    return [
+      { label: factors[0], value: weights.factor1 },
+      { label: factors[1], value: weights.factor2 },
+      { label: factors[2], value: weights.factor3 },
+      { label: factors[3], value: weights.factor4 },
+      { label: factors[4], value: weights.factor5 },
+    ];
+  }, [topic, weights]);
+
+  function sendMessage() {
+    if (!message.trim() || !weights) return;
+
+    const userText = message.trim();
+
+    const assistantReply = generateAssistantReply(
+      userText,
+      topic,
+      strategy,
+      weights
+    );
+
+    setMessages((prev) => [
+      ...prev,
+      { role: "user", text: userText },
+      { role: "assistant", text: assistantReply },
+    ]);
+
+    setMessage("");
   }
+
+  if (!intake || !weights) return null;
 
   return (
     <main
       style={{
         minHeight: "100vh",
-        background: "#000",
-        color: "#fff",
-        padding: "40px 20px",
+        background: "#000000",
+        color: "#ffffff",
+        padding: 20,
         fontFamily: "Arial, sans-serif",
       }}
     >
-      <div style={{ maxWidth: 1000, margin: "0 auto" }}>
-        <header style={{ marginBottom: 30 }}>
-          <div
-            style={{
-              display: "flex",
-              justifyContent: "space-between",
-              alignItems: "center",
-              flexWrap: "wrap",
-              gap: 12,
-            }}
-          >
-            <h1 style={{ fontSize: 36, margin: 0 }}>AI Negotiation Agent</h1>
+      <div style={{ maxWidth: 1100, margin: "40px auto" }}>
+        <h1 style={{ fontSize: 36, marginBottom: 20 }}>Negotiation Chat</h1>
 
-            <button
-              onClick={() => setAdminOpen((prev) => !prev)}
-              style={{
-                background: "#111",
-                color: "#fff",
-                border: "1px solid #555",
-                padding: "10px 16px",
-                borderRadius: 8,
-                cursor: "pointer",
-              }}
-            >
-              Admin Access
-            </button>
-          </div>
-
-          <p style={{ color: "#cfcfcf", marginTop: 12 }}>
-            Configure your priorities, then start the chatbot.
-          </p>
-        </header>
-
-        {adminOpen && !adminUnlocked && (
-          <div
-            style={{
-              border: "1px solid #333",
-              background: "#111",
-              padding: 16,
-              borderRadius: 12,
-              marginBottom: 24,
-            }}
-          >
-            <h3 style={{ marginTop: 0 }}>Professor / Admin Login</h3>
-            <input
-              type="password"
-              placeholder="Enter admin password"
-              value={adminPassword}
-              onChange={(e) => setAdminPassword(e.target.value)}
-              style={{
-                width: "100%",
-                padding: 12,
-                marginBottom: 12,
-                borderRadius: 8,
-                border: "1px solid #444",
-                background: "#000",
-                color: "#fff",
-              }}
-            />
-            <button
-              onClick={unlockAdmin}
-              style={{
-                background: "#2563eb",
-                color: "#fff",
-                border: "none",
-                padding: "10px 16px",
-                borderRadius: 8,
-                cursor: "pointer",
-              }}
-            >
-              Unlock
-            </button>
-          </div>
-        )}
-
-        {adminUnlocked && (
-          <div
-            style={{
-              border: "1px solid #333",
-              background: "#111",
-              padding: 20,
-              borderRadius: 12,
-              marginBottom: 24,
-            }}
-          >
-            <h3 style={{ marginTop: 0 }}>Negotiation Strategy</h3>
-            <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-              {STRATEGIES.map((strategy) => (
-                <button
-                  key={strategy.key}
-                  onClick={() => setSelectedStrategy(strategy.key)}
-                  style={{
-                    padding: "10px 14px",
-                    borderRadius: 999,
-                    border:
-                      selectedStrategy === strategy.key
-                        ? "2px solid #2563eb"
-                        : "1px solid #555",
-                    background:
-                      selectedStrategy === strategy.key ? "#1d4ed8" : "#000",
-                    color: "#fff",
-                    cursor: "pointer",
-                  }}
-                >
-                  {strategy.label}
-                </button>
-              ))}
-            </div>
-          </div>
-        )}
-
-        <section
+        <div
           style={{
-            border: "1px solid #333",
-            background: "#111",
-            padding: 24,
-            borderRadius: 14,
+            display: "grid",
+            gridTemplateColumns: "300px 1fr",
+            gap: 20,
+            alignItems: "start",
           }}
         >
-          <h2 style={{ marginTop: 0 }}>Car Preference Weightage</h2>
-          <p style={{ color: "#cfcfcf" }}>
-            Total always stays at <strong>100%</strong> automatically.
-          </p>
-
-          <div style={{ display: "grid", gap: 20, marginTop: 20 }}>
-            {FACTORS.map((factor) => (
-              <div key={factor.key}>
-                <div
-                  style={{
-                    display: "flex",
-                    justifyContent: "space-between",
-                    marginBottom: 8,
-                  }}
-                >
-                  <span>{factor.label}</span>
-                  <strong>{weights[factor.key]}%</strong>
-                </div>
-
-                <input
-                  type="range"
-                  min={0}
-                  max={100}
-                  value={weights[factor.key]}
-                  onChange={(e) =>
-                    handleSliderChange(factor.key, Number(e.target.value))
-                  }
-                  style={{
-                    width: "100%",
-                    accentColor: "#2563eb",
-                    cursor: "pointer",
-                  }}
-                />
-              </div>
-            ))}
-          </div>
-
-          <div
+          <aside
             style={{
-              marginTop: 24,
-              display: "flex",
-              justifyContent: "space-between",
-              alignItems: "center",
-              flexWrap: "wrap",
-              gap: 12,
+              background: "#111111",
+              border: "1px solid #333333",
+              borderRadius: 14,
+              padding: 20,
             }}
           >
-            <div
-              style={{
-                padding: "10px 14px",
-                background: total === 100 ? "#052e16" : "#7f1d1d",
-                borderRadius: 8,
-                border: "1px solid #333",
-              }}
-            >
-              Total: <strong>{total}%</strong>
+            {intake.avatar && (
+              <img
+                src={intake.avatar}
+                alt="Selected avatar"
+                style={{
+                  width: "100%",
+                  maxWidth: 240,
+                  height: 240,
+                  objectFit: "cover",
+                  borderRadius: 12,
+                  marginBottom: 16,
+                }}
+              />
+            )}
+
+            <h3 style={{ marginTop: 0 }}>User Info</h3>
+            <p>
+              <strong>Name:</strong> {intake.fullName}
+            </p>
+            <p>
+              <strong>Email:</strong> {intake.email}
+            </p>
+            <p>
+              <strong>Topic:</strong> {TOPIC_CONFIGS[topic].label}
+            </p>
+
+            <h3 style={{ marginTop: 20 }}>Weightage</h3>
+            {displayWeights.map((item) => (
+              <p key={item.label} style={{ margin: "8px 0" }}>
+                {item.label}: {item.value}%
+              </p>
+            ))}
+          </aside>
+
+          <section
+            style={{
+              background: "#111111",
+              border: "1px solid #333333",
+              borderRadius: 14,
+              padding: 20,
+              minHeight: 520,
+              display: "flex",
+              flexDirection: "column",
+            }}
+          >
+            <div style={{ flex: 1, display: "grid", gap: 12 }}>
+              {messages.length === 0 ? (
+                <div style={{ color: "#bfbfbf", lineHeight: 1.7 }}>
+                  Start the negotiation conversation here. The chatbot will use
+                  the full topic weightage in every reply.
+                </div>
+              ) : (
+                messages.map((msg, index) => (
+                  <div
+                    key={index}
+                    style={{
+                      alignSelf:
+                        msg.role === "user" ? "flex-end" : "flex-start",
+                      background: msg.role === "user" ? "#2563eb" : "#222222",
+                      padding: "12px 14px",
+                      borderRadius: 12,
+                      maxWidth: "78%",
+                      lineHeight: 1.6,
+                    }}
+                  >
+                    {msg.text}
+                  </div>
+                ))
+              )}
             </div>
 
-            <Link
-              href="/start"
+            <div
               style={{
-                background: "#2563eb",
-                color: "#fff",
-                textDecoration: "none",
-                padding: "12px 22px",
-                borderRadius: 10,
-                fontWeight: 700,
+                display: "flex",
+                gap: 10,
+                marginTop: 20,
               }}
             >
-              Start
-            </Link>
-          </div>
-        </section>
+              <input
+                value={message}
+                onChange={(e) => setMessage(e.target.value)}
+                placeholder="Type your negotiation message..."
+                style={{
+                  flex: 1,
+                  padding: 12,
+                  borderRadius: 10,
+                  border: "1px solid #444444",
+                  background: "#000000",
+                  color: "#ffffff",
+                }}
+              />
+              <button
+                onClick={sendMessage}
+                style={{
+                  background: "#2563eb",
+                  color: "#ffffff",
+                  border: "none",
+                  padding: "12px 18px",
+                  borderRadius: 10,
+                  cursor: "pointer",
+                  fontWeight: 700,
+                }}
+              >
+                Send
+              </button>
+            </div>
+          </section>
+        </div>
       </div>
     </main>
   );
