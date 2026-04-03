@@ -292,9 +292,7 @@ export default function DemoPage() {
             <p>
               <strong>Topic:</strong> {TOPIC_CONFIGS[topic].label}
             </p>
-            <p>
-              <strong>Strategy:</strong> {strategy.charAt(0).toUpperCase() + strategy.slice(1)}
-            </p>
+            
 
             <h3 style={{ marginTop: 20 }}>Weightage</h3>
             {displayWeights.map((item) => (
