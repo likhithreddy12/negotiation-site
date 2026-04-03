@@ -3,12 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 
-type FactorKey =
-  | "price"
-  | "fuel"
-  | "safety"
-  | "reliability"
-  | "horsepower";
+type TopicKey = "car" | "laptop" | "mobile" | "job" | "rent";
 
 type StrategyKey =
   | "tough"
@@ -18,15 +13,48 @@ type StrategyKey =
   | "urgent"
   | "balanced";
 
-type TopicKey = "car" | "laptop" | "house";
+type WeightState = {
+  factor1: number;
+  factor2: number;
+  factor3: number;
+  factor4: number;
+  factor5: number;
+};
 
-const FACTORS: { key: FactorKey; label: string }[] = [
-  { key: "price", label: "Price" },
-  { key: "fuel", label: "Fuel Efficiency" },
-  { key: "safety", label: "Safety" },
-  { key: "reliability", label: "Reliability" },
-  { key: "horsepower", label: "Horsepower" },
-];
+const TOPIC_CONFIGS: Record<TopicKey, { label: string; factors: string[] }> = {
+  car: {
+    label: "Car",
+    factors: [
+      "Price",
+      "Fuel Efficiency",
+      "Safety",
+      "Reliability",
+      "Horsepower",
+    ],
+  },
+  laptop: {
+    label: "Laptop",
+    factors: ["Price", "Performance", "RAM", "Battery Life", "Storage"],
+  },
+  mobile: {
+    label: "Mobile",
+    factors: ["Price", "Battery", "Camera", "Performance", "Storage"],
+  },
+  job: {
+    label: "Job",
+    factors: [
+      "Salary",
+      "Work-Life Balance",
+      "Location",
+      "Growth Opportunities",
+      "Benefits",
+    ],
+  },
+  rent: {
+    label: "Rent",
+    factors: ["Price", "Location", "Safety", "Space", "Amenities"],
+  },
+};
 
 const STRATEGIES: { key: StrategyKey; label: string }[] = [
   { key: "tough", label: "Tough" },
@@ -39,25 +67,26 @@ const STRATEGIES: { key: StrategyKey; label: string }[] = [
 
 const TOPICS: { key: TopicKey; label: string }[] = [
   { key: "car", label: "Car" },
+  { key: "mobile", label: "Mobile" },
   { key: "laptop", label: "Laptop" },
-  { key: "house", label: "House" },
+  { key: "rent", label: "Rent" },
+  { key: "job", label: "Job" },
 ];
 
 const ADMIN_PASSWORD = "admin123";
 
-const DEFAULT_WEIGHTS: Record<FactorKey, number> = {
-  price: 10,
-  fuel: 10,
-  safety: 10,
-  reliability: 69,
-  horsepower: 1,
+const DEFAULT_WEIGHTS: WeightState = {
+  factor1: 20,
+  factor2: 20,
+  factor3: 20,
+  factor4: 20,
+  factor5: 20,
 };
 
 export default function HomePage() {
   const router = useRouter();
 
-  const [weights, setWeights] =
-    useState<Record<FactorKey, number>>(DEFAULT_WEIGHTS);
+  const [weights, setWeights] = useState<WeightState>(DEFAULT_WEIGHTS);
 
   const [showPasswordModal, setShowPasswordModal] = useState(false);
   const [adminPassword, setAdminPassword] = useState("");
@@ -72,7 +101,7 @@ export default function HomePage() {
     useState<StrategyKey>("balanced");
 
   useEffect(() => {
-    const savedWeights = localStorage.getItem("car_config_weights");
+    const savedWeights = localStorage.getItem("topic_weights");
     const savedTopic = localStorage.getItem("selected_topic");
     const savedStrategy = localStorage.getItem("selected_strategy");
 
@@ -82,11 +111,19 @@ export default function HomePage() {
       } catch {}
     }
 
-    if (savedTopic) {
+    if (
+      savedTopic &&
+      ["car", "laptop", "mobile", "job", "rent"].includes(savedTopic)
+    ) {
       setSelectedTopic(savedTopic as TopicKey);
     }
 
-    if (savedStrategy) {
+    if (
+      savedStrategy &&
+      ["tough", "soft", "friendly", "analytical", "urgent", "balanced"].includes(
+        savedStrategy
+      )
+    ) {
       setSelectedStrategy(savedStrategy as StrategyKey);
     }
   }, []);
@@ -96,19 +133,19 @@ export default function HomePage() {
     [weights]
   );
 
-  const normalizeWeights = (updated: Record<FactorKey, number>) => {
-    const entries = Object.entries(updated) as [FactorKey, number][];
+  const normalizeWeights = (updated: WeightState) => {
+    const entries = Object.entries(updated) as [keyof WeightState, number][];
     const currentTotal = entries.reduce((sum, [, value]) => sum + value, 0);
 
     if (currentTotal === 100) return updated;
     if (currentTotal === 0) return DEFAULT_WEIGHTS;
 
-    const scaled: Record<FactorKey, number> = {
-      price: 0,
-      fuel: 0,
-      safety: 0,
-      reliability: 0,
-      horsepower: 0,
+    const scaled: WeightState = {
+      factor1: 0,
+      factor2: 0,
+      factor3: 0,
+      factor4: 0,
+      factor5: 0,
     };
 
     let runningTotal = 0;
@@ -126,26 +163,16 @@ export default function HomePage() {
     return scaled;
   };
 
-  const handleWeightChange = (key: FactorKey, value: number) => {
+  const handleWeightChange = (key: keyof WeightState, value: number) => {
     const updated = { ...weights, [key]: value };
     const normalized = normalizeWeights(updated);
     setWeights(normalized);
   };
 
   const handleContinue = () => {
-    localStorage.setItem("car_config_weights", JSON.stringify(weights));
-
-    localStorage.setItem(
-      "topic_weights",
-      JSON.stringify({
-        factor1: weights.price,
-        factor2: weights.fuel,
-        factor3: weights.safety,
-        factor4: weights.reliability,
-        factor5: weights.horsepower,
-      })
-    );
-
+    localStorage.setItem("topic_weights", JSON.stringify(weights));
+    localStorage.setItem("selected_topic", selectedTopic);
+    localStorage.setItem("selected_strategy", selectedStrategy);
     router.push("/start");
   };
 
@@ -194,6 +221,8 @@ export default function HomePage() {
     padding: 16,
     minHeight: 110,
   };
+
+  const factorLabels = TOPIC_CONFIGS[selectedTopic].factors;
 
   return (
     <main
@@ -340,15 +369,25 @@ export default function HomePage() {
             </div>
           </div>
 
-          <p style={{ marginBottom: 22, color: "#d1d5db" }}>
+          <p style={{ marginBottom: 10, color: "#d1d5db" }}>
             Current topic:{" "}
             <span style={{ color: "#fff", fontWeight: 700 }}>
-              {selectedTopic.charAt(0).toUpperCase() + selectedTopic.slice(1)}
+              {TOPIC_CONFIGS[selectedTopic].label}
             </span>
           </p>
 
+          <p style={{ marginBottom: 22, color: "#9ca3af", lineHeight: 1.7 }}>
+            The factor labels below automatically change based on the topic selected by admin.
+          </p>
+
           <div style={{ display: "grid", gap: 22 }}>
-            {FACTORS.map((factor) => (
+            {[
+              { key: "factor1" as const, label: factorLabels[0] },
+              { key: "factor2" as const, label: factorLabels[1] },
+              { key: "factor3" as const, label: factorLabels[2] },
+              { key: "factor4" as const, label: factorLabels[3] },
+              { key: "factor5" as const, label: factorLabels[4] },
+            ].map((factor) => (
               <div key={factor.key}>
                 <div
                   style={{
