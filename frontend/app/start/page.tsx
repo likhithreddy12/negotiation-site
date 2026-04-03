@@ -9,22 +9,22 @@ export default function StartPage() {
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
 
-  function handleContinue() {
+  const handleContinue = () => {
     if (!fullName.trim() || !email.trim()) {
-      alert("Please enter your name and email");
+      alert("Please enter your name and email.");
       return;
     }
 
     localStorage.setItem(
       "negotiation_intake",
       JSON.stringify({
-        fullName,
-        email,
+        fullName: fullName.trim(),
+        email: email.trim(),
       })
     );
 
     router.push("/select-avatar");
-  }
+  };
 
   return (
     <main
@@ -32,59 +32,80 @@ export default function StartPage() {
         minHeight: "100vh",
         background: "#000",
         color: "#fff",
-        padding: 20,
-        fontFamily: "Arial, sans-serif",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        padding: 16,
       }}
     >
       <div
         style={{
-          maxWidth: 700,
-          margin: "60px auto",
-          background: "#111",
-          border: "1px solid #333",
-          borderRadius: 14,
-          padding: 24,
+          width: "100%",
+          maxWidth: 560,
+          background: "#0d0d0f",
+          border: "1px solid #2a2a2f",
+          borderRadius: 18,
+          padding: 28,
         }}
       >
-        <h1 style={{ marginTop: 0 }}>Start</h1>
-        <p style={{ color: "#cfcfcf" }}>
-          Enter your details to continue to avatar selection.
+        <h1 style={{ fontSize: 30, fontWeight: 700, marginBottom: 8 }}>
+          Start Negotiation
+        </h1>
+
+        <p style={{ color: "#d1d5db", marginBottom: 22 }}>
+          Enter your details before selecting your chat agent.
         </p>
 
-        <div style={{ display: "grid", gap: 16, marginTop: 20 }}>
+        <div style={{ display: "grid", gap: 16 }}>
           <div>
-            <label>Full Name</label>
+            <label
+              style={{
+                display: "block",
+                marginBottom: 8,
+                fontWeight: 600,
+              }}
+            >
+              Full Name
+            </label>
             <input
               value={fullName}
               onChange={(e) => setFullName(e.target.value)}
               placeholder="Enter your full name"
               style={{
                 width: "100%",
-                padding: 12,
-                marginTop: 8,
-                borderRadius: 8,
-                border: "1px solid #444",
                 background: "#000",
                 color: "#fff",
+                border: "1px solid #374151",
+                borderRadius: 10,
+                padding: "12px 14px",
+                outline: "none",
               }}
             />
           </div>
 
           <div>
-            <label>Email</label>
+            <label
+              style={{
+                display: "block",
+                marginBottom: 8,
+                fontWeight: 600,
+              }}
+            >
+              Email
+            </label>
             <input
+              type="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               placeholder="Enter your email"
-              type="email"
               style={{
                 width: "100%",
-                padding: 12,
-                marginTop: 8,
-                borderRadius: 8,
-                border: "1px solid #444",
                 background: "#000",
                 color: "#fff",
+                border: "1px solid #374151",
+                borderRadius: 10,
+                padding: "12px 14px",
+                outline: "none",
               }}
             />
           </div>
@@ -93,17 +114,18 @@ export default function StartPage() {
         <button
           onClick={handleContinue}
           style={{
-            marginTop: 24,
+            marginTop: 22,
+            width: "100%",
             background: "#2563eb",
             color: "#fff",
             border: "none",
-            padding: "12px 20px",
             borderRadius: 10,
-            cursor: "pointer",
+            padding: "12px 14px",
             fontWeight: 700,
+            cursor: "pointer",
           }}
         >
-          Continue
+          Continue to Chat Agent Selection
         </button>
       </div>
     </main>

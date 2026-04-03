@@ -1,216 +1,232 @@
 "use client";
 
-import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 
-type TopicKey = "car" | "laptop" | "mobile" | "job" | "rent";
+type FactorKey =
+  | "price"
+  | "fuel"
+  | "safety"
+  | "reliability"
+  | "horsepower";
 
-type WeightState = {
-  factor1: number;
-  factor2: number;
-  factor3: number;
-  factor4: number;
-  factor5: number;
+type StrategyKey =
+  | "tough"
+  | "soft"
+  | "friendly"
+  | "analytical"
+  | "urgent"
+  | "balanced";
+
+type TopicKey = "car" | "laptop" | "house";
+
+const FACTORS: { key: FactorKey; label: string }[] = [
+  { key: "price", label: "Price" },
+  { key: "fuel", label: "Fuel Efficiency" },
+  { key: "safety", label: "Safety" },
+  { key: "reliability", label: "Reliability" },
+  { key: "horsepower", label: "Horsepower" },
+];
+
+const STRATEGIES: { key: StrategyKey; label: string }[] = [
+  { key: "tough", label: "Tough" },
+  { key: "soft", label: "Soft" },
+  { key: "friendly", label: "Friendly" },
+  { key: "analytical", label: "Analytical" },
+  { key: "urgent", label: "Urgent" },
+  { key: "balanced", label: "Balanced" },
+];
+
+const TOPICS: { key: TopicKey; label: string }[] = [
+  { key: "car", label: "Car" },
+  { key: "laptop", label: "Laptop" },
+  { key: "house", label: "House" },
+];
+
+const ADMIN_PASSWORD = "admin123";
+
+const DEFAULT_WEIGHTS: Record<FactorKey, number> = {
+  price: 10,
+  fuel: 10,
+  safety: 10,
+  reliability: 69,
+  horsepower: 1,
 };
-
-const TOPIC_CONFIGS: Record<TopicKey, { label: string; factors: string[] }> = {
-  car: {
-    label: "Car",
-    factors: [
-      "Price",
-      "Fuel Efficiency",
-      "Safety",
-      "Reliability",
-      "Horsepower",
-    ],
-  },
-  laptop: {
-    label: "Laptop",
-    factors: ["Price", "Performance", "RAM", "Battery Life", "Storage"],
-  },
-  mobile: {
-    label: "Mobile",
-    factors: ["Price", "Battery", "Camera", "Performance", "Storage"],
-  },
-  job: {
-    label: "Job",
-    factors: [
-      "Salary",
-      "Work-Life Balance",
-      "Location",
-      "Growth Opportunities",
-      "Benefits",
-    ],
-  },
-  rent: {
-    label: "Rent",
-    factors: ["Price", "Location", "Safety", "Space", "Amenities"],
-  },
-};
-
-const DEFAULT_WEIGHTS: WeightState = {
-  factor1: 20,
-  factor2: 20,
-  factor3: 20,
-  factor4: 20,
-  factor5: 20,
-};
-
-function normalizeWeights(
-  changedKey: keyof WeightState,
-  changedValue: number,
-  current: WeightState
-): WeightState {
-  const next: WeightState = { ...current, [changedKey]: changedValue };
-
-  const otherKeys = (Object.keys(current) as (keyof WeightState)[]).filter(
-    (key) => key !== changedKey
-  );
-
-  const otherTotal = otherKeys.reduce((sum, key) => sum + current[key], 0);
-  const remaining = 100 - changedValue;
-
-  if (remaining <= 0) {
-    const reset: WeightState = {
-      factor1: 0,
-      factor2: 0,
-      factor3: 0,
-      factor4: 0,
-      factor5: 0,
-    };
-    reset[changedKey] = 100;
-    return reset;
-  }
-
-  if (otherTotal === 0) {
-    const equalShare = Math.floor(remaining / otherKeys.length);
-    let leftover = remaining - equalShare * otherKeys.length;
-
-    for (const key of otherKeys) {
-      next[key] = equalShare;
-    }
-
-    for (const key of otherKeys) {
-      if (leftover <= 0) break;
-      next[key] += 1;
-      leftover -= 1;
-    }
-
-    return next;
-  }
-
-  let assigned = 0;
-
-  for (let i = 0; i < otherKeys.length; i++) {
-    const key = otherKeys[i];
-
-    if (i === otherKeys.length - 1) {
-      next[key] = remaining - assigned;
-    } else {
-      const proportional = Math.round((current[key] / otherTotal) * remaining);
-      next[key] = proportional;
-      assigned += proportional;
-    }
-  }
-
-  const total = Object.values(next).reduce((sum, value) => sum + value, 0);
-  const diff = 100 - total;
-
-  if (diff !== 0) {
-    const lastKey = otherKeys[otherKeys.length - 1];
-    next[lastKey] += diff;
-  }
-
-  return next;
-}
 
 export default function HomePage() {
+  const router = useRouter();
+
+  const [weights, setWeights] =
+    useState<Record<FactorKey, number>>(DEFAULT_WEIGHTS);
+
+  const [showPasswordModal, setShowPasswordModal] = useState(false);
+  const [adminPassword, setAdminPassword] = useState("");
+  const [adminUnlocked, setAdminUnlocked] = useState(false);
+  const [adminError, setAdminError] = useState("");
+
+  const [showTopicsPanel, setShowTopicsPanel] = useState(false);
+  const [showStrategiesPanel, setShowStrategiesPanel] = useState(false);
+
   const [selectedTopic, setSelectedTopic] = useState<TopicKey>("car");
-  const [weights, setWeights] = useState<WeightState>(DEFAULT_WEIGHTS);
+  const [selectedStrategy, setSelectedStrategy] =
+    useState<StrategyKey>("balanced");
 
   useEffect(() => {
+    const savedWeights = localStorage.getItem("car_config_weights");
     const savedTopic = localStorage.getItem("selected_topic");
-    const savedWeights = localStorage.getItem("topic_weights");
-
-    if (
-      savedTopic &&
-      ["car", "laptop", "mobile", "job", "rent"].includes(savedTopic)
-    ) {
-      setSelectedTopic(savedTopic as TopicKey);
-    }
+    const savedStrategy = localStorage.getItem("selected_strategy");
 
     if (savedWeights) {
       try {
-        setWeights(JSON.parse(savedWeights) as WeightState);
-      } catch {
-        setWeights(DEFAULT_WEIGHTS);
-      }
+        setWeights(JSON.parse(savedWeights));
+      } catch {}
+    }
+
+    if (savedTopic) {
+      setSelectedTopic(savedTopic as TopicKey);
+    }
+
+    if (savedStrategy) {
+      setSelectedStrategy(savedStrategy as StrategyKey);
     }
   }, []);
 
-  useEffect(() => {
-    localStorage.setItem("topic_weights", JSON.stringify(weights));
-  }, [weights]);
+  const total = useMemo(
+    () => Object.values(weights).reduce((sum, value) => sum + value, 0),
+    [weights]
+  );
 
-  useEffect(() => {
-    const syncFromAdmin = () => {
-      const savedTopic = localStorage.getItem("selected_topic");
-      if (
-        savedTopic &&
-        ["car", "laptop", "mobile", "job", "rent"].includes(savedTopic)
-      ) {
-        setSelectedTopic(savedTopic as TopicKey);
-      }
+  const normalizeWeights = (updated: Record<FactorKey, number>) => {
+    const entries = Object.entries(updated) as [FactorKey, number][];
+    const currentTotal = entries.reduce((sum, [, value]) => sum + value, 0);
+
+    if (currentTotal === 100) return updated;
+    if (currentTotal === 0) return DEFAULT_WEIGHTS;
+
+    const scaled: Record<FactorKey, number> = {
+      price: 0,
+      fuel: 0,
+      safety: 0,
+      reliability: 0,
+      horsepower: 0,
     };
 
-    window.addEventListener("focus", syncFromAdmin);
-    return () => window.removeEventListener("focus", syncFromAdmin);
-  }, []);
+    let runningTotal = 0;
 
-  const topicData = TOPIC_CONFIGS[selectedTopic];
+    entries.forEach(([key, value], index) => {
+      if (index === entries.length - 1) {
+        scaled[key] = 100 - runningTotal;
+      } else {
+        const nextValue = Math.round((value / currentTotal) * 100);
+        scaled[key] = nextValue;
+        runningTotal += nextValue;
+      }
+    });
 
-  const total = useMemo(() => {
-    return Object.values(weights).reduce((sum, value) => sum + value, 0);
-  }, [weights]);
+    return scaled;
+  };
 
-  function handleSliderChange(key: keyof WeightState, value: number) {
-    const updated = normalizeWeights(key, value, weights);
-    setWeights(updated);
-  }
+  const handleWeightChange = (key: FactorKey, value: number) => {
+    const updated = { ...weights, [key]: value };
+    const normalized = normalizeWeights(updated);
+    setWeights(normalized);
+  };
+
+  const handleContinue = () => {
+    localStorage.setItem("car_config_weights", JSON.stringify(weights));
+
+    localStorage.setItem(
+      "topic_weights",
+      JSON.stringify({
+        factor1: weights.price,
+        factor2: weights.fuel,
+        factor3: weights.safety,
+        factor4: weights.reliability,
+        factor5: weights.horsepower,
+      })
+    );
+
+    router.push("/start");
+  };
+
+  const handleAdminOpen = () => {
+    setShowPasswordModal(true);
+    setAdminPassword("");
+    setAdminError("");
+  };
+
+  const handleUnlockAdmin = () => {
+    if (adminPassword === ADMIN_PASSWORD) {
+      setAdminUnlocked(true);
+      setShowPasswordModal(false);
+      setAdminPassword("");
+      setAdminError("");
+    } else {
+      setAdminError("Incorrect password");
+    }
+  };
+
+  const handleSaveAdminChanges = () => {
+    localStorage.setItem("selected_topic", selectedTopic);
+    localStorage.setItem("selected_strategy", selectedStrategy);
+
+    setAdminUnlocked(false);
+    setShowTopicsPanel(false);
+    setShowStrategiesPanel(false);
+    setAdminPassword("");
+    setAdminError("");
+  };
+
+  const sectionStyle: React.CSSProperties = {
+    maxWidth: 920,
+    margin: "0 auto 24px auto",
+    background: "#0d0d0f",
+    border: "1px solid #2a2a2f",
+    borderRadius: 18,
+    padding: 24,
+    boxShadow: "0 0 0 1px rgba(255,255,255,0.03) inset",
+  };
+
+  const smallCardStyle: React.CSSProperties = {
+    background: "#070709",
+    border: "1px solid #2a2a2f",
+    borderRadius: 14,
+    padding: 16,
+    minHeight: 110,
+  };
 
   return (
     <main
       style={{
         minHeight: "100vh",
-        background: "#000000",
-        color: "#ffffff",
-        fontFamily: "Arial, sans-serif",
+        background: "#000",
+        color: "#fff",
+        fontFamily:
+          "Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, Segoe UI, sans-serif",
       }}
     >
       <header
         style={{
+          borderBottom: "1px solid #222",
           position: "sticky",
           top: 0,
-          zIndex: 50,
-          background: "#000000",
-          borderBottom: "1px solid #333333",
+          zIndex: 20,
+          background: "#000",
         }}
       >
         <div
           style={{
-            maxWidth: 1200,
+            maxWidth: 1300,
             margin: "0 auto",
-            padding: "18px 20px",
+            padding: "14px 20px",
             display: "flex",
-            justifyContent: "space-between",
             alignItems: "center",
+            justifyContent: "space-between",
             gap: 16,
             flexWrap: "wrap",
           }}
         >
-          <div style={{ fontSize: 26, fontWeight: 700 }}>
-            AI Negotiation Agent
-          </div>
+          <div style={{ fontSize: 22, fontWeight: 700 }}>AI Negotiation Agent</div>
 
           <nav
             style={{
@@ -218,86 +234,54 @@ export default function HomePage() {
               alignItems: "center",
               gap: 18,
               flexWrap: "wrap",
+              fontSize: 14,
             }}
           >
-            <a
-              href="#how-it-works"
-              style={{
-                color: "#ffffff",
-                textDecoration: "none",
-                fontWeight: 500,
-              }}
-            >
+            <a href="#how-it-works" style={{ color: "#fff", textDecoration: "none" }}>
               How It Works
             </a>
-
-            <a
-              href="#configuration"
-              style={{
-                color: "#ffffff",
-                textDecoration: "none",
-                fontWeight: 500,
-              }}
-            >
+            <a href="#configuration" style={{ color: "#fff", textDecoration: "none" }}>
               Configuration
             </a>
-
-            <a
-              href="#contact"
-              style={{
-                color: "#ffffff",
-                textDecoration: "none",
-                fontWeight: 500,
-              }}
-            >
+            <a href="#contact" style={{ color: "#fff", textDecoration: "none" }}>
               Contact
             </a>
 
-            <Link
-              href="/admin"
+            <button
+              onClick={handleAdminOpen}
               style={{
                 background: "#2563eb",
-                color: "#ffffff",
-                textDecoration: "none",
-                padding: "10px 16px",
+                color: "#fff",
+                border: "none",
                 borderRadius: 10,
-                fontWeight: 700,
-                border: "1px solid #2563eb",
+                padding: "10px 16px",
+                fontWeight: 600,
+                cursor: "pointer",
               }}
             >
               Admin Access
-            </Link>
+            </button>
           </nav>
         </div>
       </header>
 
-      <div style={{ maxWidth: 1200, margin: "0 auto", padding: "32px 20px 60px" }}>
-        <section
-          id="how-it-works"
-          style={{
-            background: "#111111",
-            border: "1px solid #333333",
-            borderRadius: 16,
-            padding: 28,
-            marginBottom: 28,
-          }}
-        >
-          <h1 style={{ fontSize: 40, marginTop: 0, marginBottom: 12 }}>
+      <div style={{ padding: "24px 16px 40px" }}>
+        <section id="how-it-works" style={sectionStyle}>
+          <h1 style={{ fontSize: 28, marginBottom: 14, fontWeight: 700 }}>
             Smart Negotiation Website
           </h1>
 
-          <p style={{ color: "#d1d5db", fontSize: 18, lineHeight: 1.7 }}>
-            This platform helps users configure their priorities, choose a
-            chatbot avatar, and begin a negotiation experience where the chatbot
-            responds based on topic, hidden strategy, and full user weightage.
+          <p style={{ color: "#e5e7eb", lineHeight: 1.7, marginBottom: 22 }}>
+            This platform helps users configure their priorities, choose a chatbot
+            avatar, and begin a negotiation experience where the chatbot responds
+            based on topic, hidden strategy, and full user weightage.
           </p>
 
           <div
             style={{
-              marginTop: 24,
               display: "grid",
-              gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
-              gap: 18,
+              gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
+              gap: 14,
             }}
           >
             {[
@@ -306,19 +290,11 @@ export default function HomePage() {
               "Choose a male or female chatbot avatar.",
               "Start the negotiation chat and receive responses based on all selected weights.",
             ].map((text, index) => (
-              <div
-                key={index}
-                style={{
-                  background: "#000000",
-                  border: "1px solid #333333",
-                  borderRadius: 14,
-                  padding: 18,
-                }}
-              >
+              <div key={index} style={smallCardStyle}>
                 <div
                   style={{
-                    width: 36,
-                    height: 36,
+                    width: 34,
+                    height: 34,
                     borderRadius: 999,
                     background: "#2563eb",
                     display: "flex",
@@ -330,48 +306,33 @@ export default function HomePage() {
                 >
                   {index + 1}
                 </div>
-
-                <p style={{ margin: 0, lineHeight: 1.6, color: "#f3f4f6" }}>
+                <div style={{ lineHeight: 1.7, fontWeight: 600, fontSize: 15 }}>
                   {text}
-                </p>
+                </div>
               </div>
             ))}
           </div>
         </section>
 
-        <section
-          id="configuration"
-          style={{
-            background: "#111111",
-            border: "1px solid #333333",
-            borderRadius: 16,
-            padding: 28,
-            marginBottom: 28,
-          }}
-        >
+        <section id="configuration" style={sectionStyle}>
           <div
             style={{
               display: "flex",
               justifyContent: "space-between",
               alignItems: "center",
-              gap: 12,
+              gap: 16,
               flexWrap: "wrap",
-              marginBottom: 20,
+              marginBottom: 12,
             }}
           >
-            <div>
-              <h2 style={{ margin: 0, fontSize: 30 }}>Configuration</h2>
-              <p style={{ margin: "8px 0 0", color: "#d1d5db" }}>
-                Current topic: <strong>{topicData.label}</strong>
-              </p>
-            </div>
-
+            <h2 style={{ fontSize: 22, fontWeight: 700 }}>Configuration</h2>
             <div
               style={{
+                background: "#0c4a2d",
+                color: "#fff",
                 padding: "10px 14px",
-                background: total === 100 ? "#052e16" : "#7f1d1d",
                 borderRadius: 10,
-                border: "1px solid #333333",
+                border: "1px solid #166534",
                 fontWeight: 700,
               }}
             >
@@ -379,77 +340,292 @@ export default function HomePage() {
             </div>
           </div>
 
+          <p style={{ marginBottom: 22, color: "#d1d5db" }}>
+            Current topic:{" "}
+            <span style={{ color: "#fff", fontWeight: 700 }}>
+              {selectedTopic.charAt(0).toUpperCase() + selectedTopic.slice(1)}
+            </span>
+          </p>
+
           <div style={{ display: "grid", gap: 22 }}>
-            {topicData.factors.map((factor, index) => {
-              const key = `factor${index + 1}` as keyof WeightState;
-
-              return (
-                <div key={factor}>
-                  <div
-                    style={{
-                      display: "flex",
-                      justifyContent: "space-between",
-                      alignItems: "center",
-                      marginBottom: 8,
-                    }}
-                  >
-                    <span style={{ fontSize: 17 }}>{factor}</span>
-                    <strong>{weights[key]}%</strong>
-                  </div>
-
-                  <input
-                    type="range"
-                    min={0}
-                    max={100}
-                    value={weights[key]}
-                    onChange={(e) =>
-                      handleSliderChange(key, Number(e.target.value))
-                    }
-                    style={{
-                      width: "100%",
-                      height: 10,
-                      accentColor: "#2563eb",
-                      cursor: "pointer",
-                    }}
-                  />
+            {FACTORS.map((factor) => (
+              <div key={factor.key}>
+                <div
+                  style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    marginBottom: 8,
+                    fontWeight: 600,
+                  }}
+                >
+                  <span>{factor.label}</span>
+                  <span>{weights[factor.key]}%</span>
                 </div>
-              );
-            })}
+
+                <input
+                  type="range"
+                  min={0}
+                  max={100}
+                  value={weights[factor.key]}
+                  onChange={(e) =>
+                    handleWeightChange(factor.key, Number(e.target.value))
+                  }
+                  style={{
+                    width: "100%",
+                    accentColor: "#2563eb",
+                    cursor: "pointer",
+                  }}
+                />
+              </div>
+            ))}
           </div>
 
-          <div style={{ marginTop: 24 }}>
-            <Link
-              href="/start"
-              style={{
-                display: "inline-block",
-                background: "#2563eb",
-                color: "#ffffff",
-                textDecoration: "none",
-                padding: "12px 22px",
-                borderRadius: 10,
-                fontWeight: 700,
-              }}
-            >
-              Continue
-            </Link>
-          </div>
+          <button
+            onClick={handleContinue}
+            style={{
+              marginTop: 24,
+              background: "#2563eb",
+              color: "#fff",
+              border: "none",
+              borderRadius: 10,
+              padding: "12px 18px",
+              fontWeight: 700,
+              cursor: "pointer",
+            }}
+          >
+            Continue
+          </button>
         </section>
 
-        <section
-          id="contact"
-          style={{
-            background: "#111111",
-            border: "1px solid #333333",
-            borderRadius: 16,
-            padding: 28,
-          }}
-        >
-          <h2 style={{ marginTop: 0, fontSize: 30 }}>Contact</h2>
-          <p style={{ color: "#f3f4f6", lineHeight: 1.7, marginBottom: 0 }}>
+        <section id="contact" style={sectionStyle}>
+          <h2 style={{ fontSize: 20, fontWeight: 700, marginBottom: 10 }}>Contact</h2>
+          <p style={{ color: "#d1d5db" }}>
             This website is developed for academic and research purposes only.
           </p>
         </section>
       </div>
+
+      {showPasswordModal && (
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(0,0,0,0.75)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 1000,
+            padding: 16,
+          }}
+        >
+          <div
+            style={{
+              width: "100%",
+              maxWidth: 420,
+              background: "#0d0d0f",
+              border: "1px solid #2a2a2f",
+              borderRadius: 18,
+              padding: 24,
+            }}
+          >
+            <h3 style={{ fontSize: 22, fontWeight: 700, marginBottom: 14 }}>
+              Admin Login
+            </h3>
+
+            <input
+              type="password"
+              placeholder="Enter admin password"
+              value={adminPassword}
+              onChange={(e) => setAdminPassword(e.target.value)}
+              style={{
+                width: "100%",
+                background: "#000",
+                color: "#fff",
+                border: "1px solid #374151",
+                borderRadius: 10,
+                padding: "12px 14px",
+                outline: "none",
+                marginBottom: 12,
+              }}
+            />
+
+            {adminError && (
+              <p style={{ color: "#f87171", marginBottom: 12 }}>{adminError}</p>
+            )}
+
+            <div style={{ display: "flex", gap: 10 }}>
+              <button
+                onClick={handleUnlockAdmin}
+                style={{
+                  flex: 1,
+                  background: "#2563eb",
+                  color: "#fff",
+                  border: "none",
+                  borderRadius: 10,
+                  padding: "12px 14px",
+                  fontWeight: 700,
+                  cursor: "pointer",
+                }}
+              >
+                Unlock
+              </button>
+
+              <button
+                onClick={() => setShowPasswordModal(false)}
+                style={{
+                  flex: 1,
+                  background: "#111827",
+                  color: "#fff",
+                  border: "1px solid #374151",
+                  borderRadius: 10,
+                  padding: "12px 14px",
+                  fontWeight: 700,
+                  cursor: "pointer",
+                }}
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {adminUnlocked && (
+        <div
+          style={{
+            position: "fixed",
+            top: 90,
+            right: 20,
+            width: "min(360px, calc(100vw - 32px))",
+            background: "#0d0d0f",
+            border: "1px solid #2a2a2f",
+            borderRadius: 18,
+            padding: 18,
+            zIndex: 999,
+            boxShadow: "0 20px 50px rgba(0,0,0,0.45)",
+          }}
+        >
+          <h3 style={{ fontSize: 20, fontWeight: 700, marginBottom: 14 }}>
+            Admin Controls
+          </h3>
+
+          <div style={{ display: "grid", gap: 10, marginBottom: 14 }}>
+            <button
+              onClick={() => setShowTopicsPanel((prev) => !prev)}
+              style={{
+                background: "#111827",
+                color: "#fff",
+                border: "1px solid #374151",
+                borderRadius: 10,
+                padding: "12px 14px",
+                fontWeight: 700,
+                textAlign: "left",
+                cursor: "pointer",
+              }}
+            >
+              Topics
+            </button>
+
+            {showTopicsPanel && (
+              <div
+                style={{
+                  background: "#070709",
+                  border: "1px solid #2a2a2f",
+                  borderRadius: 12,
+                  padding: 12,
+                  display: "grid",
+                  gap: 10,
+                }}
+              >
+                {TOPICS.map((topic) => (
+                  <button
+                    key={topic.key}
+                    onClick={() => setSelectedTopic(topic.key)}
+                    style={{
+                      background:
+                        selectedTopic === topic.key ? "#2563eb" : "#111827",
+                      color: "#fff",
+                      border: "1px solid #374151",
+                      borderRadius: 10,
+                      padding: "10px 12px",
+                      fontWeight: 700,
+                      cursor: "pointer",
+                    }}
+                  >
+                    {topic.label}
+                  </button>
+                ))}
+              </div>
+            )}
+
+            <button
+              onClick={() => setShowStrategiesPanel((prev) => !prev)}
+              style={{
+                background: "#111827",
+                color: "#fff",
+                border: "1px solid #374151",
+                borderRadius: 10,
+                padding: "12px 14px",
+                fontWeight: 700,
+                textAlign: "left",
+                cursor: "pointer",
+              }}
+            >
+              Chat Strategies
+            </button>
+
+            {showStrategiesPanel && (
+              <div
+                style={{
+                  background: "#070709",
+                  border: "1px solid #2a2a2f",
+                  borderRadius: 12,
+                  padding: 12,
+                  display: "grid",
+                  gap: 10,
+                }}
+              >
+                {STRATEGIES.map((strategy) => (
+                  <button
+                    key={strategy.key}
+                    onClick={() => setSelectedStrategy(strategy.key)}
+                    style={{
+                      background:
+                        selectedStrategy === strategy.key
+                          ? "#2563eb"
+                          : "#111827",
+                      color: "#fff",
+                      border: "1px solid #374151",
+                      borderRadius: 10,
+                      padding: "10px 12px",
+                      fontWeight: 700,
+                      cursor: "pointer",
+                    }}
+                  >
+                    {strategy.label}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <button
+            onClick={handleSaveAdminChanges}
+            style={{
+              width: "100%",
+              background: "#2563eb",
+              color: "#fff",
+              border: "none",
+              borderRadius: 10,
+              padding: "12px 14px",
+              fontWeight: 700,
+              cursor: "pointer",
+            }}
+          >
+            Save Changes
+          </button>
+        </div>
+      )}
     </main>
   );
 }

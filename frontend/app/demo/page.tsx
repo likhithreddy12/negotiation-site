@@ -234,6 +234,9 @@ export default function DemoPage() {
 
   if (!intake || !weights) return null;
 
+  const avatarSrc =
+    intake.avatar === "female" ? "/agents/female.png" : "/agents/male.png";
+
   return (
     <main
       style={{
@@ -241,7 +244,8 @@ export default function DemoPage() {
         background: "#000000",
         color: "#ffffff",
         padding: 20,
-        fontFamily: "Arial, sans-serif",
+        fontFamily:
+          "Arial, sans-serif, system-ui, -apple-system, BlinkMacSystemFont, Segoe UI, sans-serif",
       }}
     >
       <div style={{ maxWidth: 1100, margin: "40px auto" }}>
@@ -250,7 +254,7 @@ export default function DemoPage() {
         <div
           style={{
             display: "grid",
-            gridTemplateColumns: "300px 1fr",
+            gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))",
             gap: 20,
             alignItems: "start",
           }}
@@ -261,22 +265,22 @@ export default function DemoPage() {
               border: "1px solid #333333",
               borderRadius: 14,
               padding: 20,
+              width: "100%",
             }}
           >
-            {intake.avatar && (
-              <img
-                src={intake.avatar}
-                alt="Selected avatar"
-                style={{
-                  width: "100%",
-                  maxWidth: 240,
-                  height: 240,
-                  objectFit: "cover",
-                  borderRadius: 12,
-                  marginBottom: 16,
-                }}
-              />
-            )}
+            <img
+              src={avatarSrc}
+              alt="Selected avatar"
+              style={{
+                width: "100%",
+                maxWidth: 240,
+                height: 240,
+                objectFit: "cover",
+                borderRadius: 12,
+                marginBottom: 16,
+                display: "block",
+              }}
+            />
 
             <h3 style={{ marginTop: 0 }}>User Info</h3>
             <p>
@@ -287,6 +291,9 @@ export default function DemoPage() {
             </p>
             <p>
               <strong>Topic:</strong> {TOPIC_CONFIGS[topic].label}
+            </p>
+            <p>
+              <strong>Strategy:</strong> {strategy.charAt(0).toUpperCase() + strategy.slice(1)}
             </p>
 
             <h3 style={{ marginTop: 20 }}>Weightage</h3>
@@ -304,11 +311,19 @@ export default function DemoPage() {
               borderRadius: 14,
               padding: 20,
               minHeight: 520,
+              width: "100%",
               display: "flex",
               flexDirection: "column",
             }}
           >
-            <div style={{ flex: 1, display: "grid", gap: 12 }}>
+            <div
+              style={{
+                flex: 1,
+                display: "grid",
+                gap: 12,
+                minHeight: 320,
+              }}
+            >
               {messages.length === 0 ? (
                 <div style={{ color: "#bfbfbf", lineHeight: 1.7 }}>
                   Start the negotiation conversation here. The chatbot will use
@@ -326,6 +341,7 @@ export default function DemoPage() {
                       borderRadius: 12,
                       maxWidth: "78%",
                       lineHeight: 1.6,
+                      wordBreak: "break-word",
                     }}
                   >
                     {msg.text}
@@ -339,19 +355,27 @@ export default function DemoPage() {
                 display: "flex",
                 gap: 10,
                 marginTop: 20,
+                flexWrap: "wrap",
               }}
             >
               <input
                 value={message}
                 onChange={(e) => setMessage(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    sendMessage();
+                  }
+                }}
                 placeholder="Type your negotiation message..."
                 style={{
                   flex: 1,
+                  minWidth: 220,
                   padding: 12,
                   borderRadius: 10,
                   border: "1px solid #444444",
                   background: "#000000",
                   color: "#ffffff",
+                  outline: "none",
                 }}
               />
               <button
