@@ -1,264 +1,320 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import {
-  DEFAULT_ADMIN_SETTINGS,
-  TOPIC_CONFIGS,
-  TopicKey,
-  StrategyKey,
-} from "../../lib/negotiation-config";
+import { useRouter } from "next/navigation";
+import { TOPIC_CONFIGS, type StrategyKey, type TopicKey } from "@/lib/negotiation-config";
+import type { ChatMessage, WeightState } from "@/lib/negotiation-chat-engine";
 
-type AdminSettings = {
-  activeTopic: TopicKey;
-  selectedStrategy: StrategyKey;
-};
-
-type ChatMessage = {
-  role: "user" | "bot";
-  content: string;
+type Intake = {
+  fullName: string;
+  email: string;
+  avatar?: string;
 };
 
 export default function DemoPage() {
-  const [adminSettings, setAdminSettings] = useState<AdminSettings>(DEFAULT_ADMIN_SETTINGS);
-  const [userConfig, setUserConfig] = useState<{
-    topic: TopicKey;
-    formValues: Record<string, string>;
-    weights: Record<string, number>;
-  } | null>(null);
+  const router = useRouter();
+
+  const [intake, setIntake] = useState<Intake | null>(null);
+  const [topic, setTopic] = useState<TopicKey>("car");
+  const [strategy, setStrategy] = useState<StrategyKey>("balanced");
+  const [weights, setWeights] = useState<WeightState | null>(null);
   const [message, setMessage] = useState("");
   const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [isSending, setIsSending] = useState(false);
 
   useEffect(() => {
-    const storedAdmin = localStorage.getItem("admin_settings");
-    if (storedAdmin) {
-      setAdminSettings(JSON.parse(storedAdmin));
+    const storedIntake = localStorage.getItem("negotiation_intake");
+    const storedTopic = localStorage.getItem("selected_topic");
+    const storedStrategy = localStorage.getItem("selected_strategy");
+    const storedWeights = localStorage.getItem("topic_weights");
+
+    if (!storedIntake) {
+      router.replace("/start");
+      return;
     }
 
-    const storedUserConfig = localStorage.getItem("user_topic_config");
-    if (storedUserConfig) {
-      setUserConfig(JSON.parse(storedUserConfig));
+    setIntake(JSON.parse(storedIntake));
+
+    if (
+      storedTopic &&
+      ["car", "laptop", "mobile", "job", "rent"].includes(storedTopic)
+    ) {
+      setTopic(storedTopic as TopicKey);
     }
-  }, []);
 
-  const activeTopic = userConfig?.topic || adminSettings.activeTopic;
-  const topicConfig = useMemo(() => TOPIC_CONFIGS[activeTopic], [activeTopic]);
+    if (
+      storedStrategy &&
+      ["balanced", "tough", "soft", "friendly", "analytical", "urgent"].includes(
+        storedStrategy
+      )
+    ) {
+      setStrategy(storedStrategy as StrategyKey);
+    }
 
-  const sortedFactors = useMemo(() => {
-    const entries = Object.entries(userConfig?.weights || {});
-    return entries.sort((a, b) => b[1] - a[1]);
-  }, [userConfig]);
+    if (storedWeights) {
+      try {
+        setWeights(JSON.parse(storedWeights));
+      } catch {
+        setWeights({
+          factor1: 20,
+          factor2: 20,
+          factor3: 20,
+          factor4: 20,
+          factor5: 20,
+        });
+      }
+    } else {
+      setWeights({
+        factor1: 20,
+        factor2: 20,
+        factor3: 20,
+        factor4: 20,
+        factor5: 20,
+      });
+    }
+  }, [router]);
 
-  const topFactors = sortedFactors
-    .slice(0, 2)
-    .map(([key]) => topicConfig.factors.find((factor) => factor.key === key)?.label || key);
+  const displayWeights = useMemo(() => {
+    if (!weights) return [];
 
-  const handleSend = () => {
-    if (!message.trim()) return;
+    const factors = TOPIC_CONFIGS[topic].factors;
 
-    const userMessage = message.trim();
+    return [
+      { label: factors[0].label, value: weights.factor1 },
+      { label: factors[1].label, value: weights.factor2 },
+      { label: factors[2].label, value: weights.factor3 },
+      { label: factors[3].label, value: weights.factor4 },
+      { label: factors[4].label, value: weights.factor5 },
+    ];
+  }, [topic, weights]);
 
-    const botReply = generateBotReply({
-      userMessage,
-      topic: activeTopic,
-      strategy: adminSettings.selectedStrategy,
-      topFactors,
-      formValues: userConfig?.formValues || {},
-    });
+  async function sendMessage() {
+    if (!message.trim() || !weights || isSending) return;
 
-    setMessages((prev) => [
-      ...prev,
-      { role: "user", content: userMessage },
-      { role: "bot", content: botReply },
-    ]);
+    const userText = message.trim();
+    const priorMessages = [...messages];
 
+    setMessages((prev) => [...prev, { role: "user", text: userText }]);
     setMessage("");
-  };
+    setIsSending(true);
+
+    try {
+      const response = await fetch("/api/chat", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          userMessage: userText,
+          topic,
+          strategy,
+          weights,
+          intake,
+          messages: priorMessages,
+        }),
+      });
+
+      const data = (await response.json()) as { reply?: string; error?: string };
+
+      if (!response.ok || !data.reply) {
+        throw new Error(data.error || "Unable to get chatbot response.");
+      }
+
+      setMessages((prev) => [...prev, { role: "assistant", text: data.reply as string }]);
+    } catch {
+      setMessages((prev) => [
+        ...prev,
+        {
+          role: "assistant",
+          text: "I could not process that message right now. Please try again.",
+        },
+      ]);
+    } finally {
+      setIsSending(false);
+    }
+  }
+
+  if (!intake || !weights) return null;
+
+  const avatarSrc =
+    intake.avatar === "female" ? "/agents/female.png" : "/agents/male.png";
 
   return (
     <main
       style={{
         minHeight: "100vh",
-        background: "black",
-        color: "white",
-        padding: "30px 20px",
+        background: "#000000",
+        color: "#ffffff",
+        padding: 20,
+        fontFamily:
+          "Arial, sans-serif, system-ui, -apple-system, BlinkMacSystemFont, Segoe UI, sans-serif",
       }}
     >
-      <div style={{ maxWidth: 950, margin: "0 auto" }}>
-        <h1 style={{ fontSize: 38, marginBottom: 10 }}>{topicConfig.navTitle}</h1>
-        <p style={{ color: "#cbd5e1", marginBottom: 8 }}>
-          Strategy: <strong>{adminSettings.selectedStrategy}</strong>
-        </p>
-        <p style={{ color: "#cbd5e1", marginBottom: 24 }}>
-          Top priorities: <strong>{topFactors.join(", ") || "Default priorities"}</strong>
-        </p>
+      <div style={{ maxWidth: 1100, margin: "40px auto" }}>
+        <h1 style={{ fontSize: 36, marginBottom: 20 }}>Negotiation Chat</h1>
 
-        <section style={boxStyle}>
-          <h2 style={{ fontSize: 24, marginBottom: 14 }}>Selected Configuration</h2>
-
-          <div
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))",
+            gap: 20,
+            alignItems: "start",
+          }}
+        >
+          <aside
             style={{
-              display: "grid",
-              gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))",
-              gap: 16,
+              background: "#111111",
+              border: "1px solid #333333",
+              borderRadius: 14,
+              padding: 20,
+              width: "100%",
             }}
           >
-            <div style={innerBox}>
-              <h3 style={{ marginBottom: 10 }}>Inputs</h3>
-              {Object.entries(userConfig?.formValues || {}).length === 0 ? (
-                <p style={{ color: "#94a3b8" }}>No details entered yet.</p>
+            <img
+              src={avatarSrc}
+              alt="Selected avatar"
+              style={{
+                width: "100%",
+                maxWidth: 240,
+                height: 240,
+                objectFit: "cover",
+                borderRadius: 12,
+                marginBottom: 16,
+                display: "block",
+              }}
+            />
+
+            <h3 style={{ marginTop: 0 }}>User Info</h3>
+            <p>
+              <strong>Name:</strong> {intake.fullName}
+            </p>
+            <p>
+              <strong>Email:</strong> {intake.email}
+            </p>
+            <p>
+              <strong>Topic:</strong> {TOPIC_CONFIGS[topic].label}
+            </p>
+
+            <h3 style={{ marginTop: 20 }}>Weightage</h3>
+            {displayWeights.map((item) => (
+              <p key={item.label} style={{ margin: "8px 0" }}>
+                {item.label}: {item.value}%
+              </p>
+            ))}
+          </aside>
+
+          <section
+            style={{
+              background: "#111111",
+              border: "1px solid #333333",
+              borderRadius: 14,
+              padding: 20,
+              minHeight: 520,
+              width: "100%",
+              display: "flex",
+              flexDirection: "column",
+            }}
+          >
+            <div
+              style={{
+                flex: 1,
+                display: "grid",
+                gap: 12,
+                minHeight: 320,
+              }}
+            >
+              {messages.length === 0 ? (
+                <div style={{ color: "#bfbfbf", lineHeight: 1.7 }}>
+                  Start the negotiation conversation here. The chatbot will use
+                  the full topic weightage in every reply.
+                </div>
               ) : (
-                Object.entries(userConfig?.formValues || {}).map(([key, value]) => (
-                  <div key={key} style={{ marginBottom: 8, color: "#cbd5e1" }}>
-                    • {key}: {value}
+                messages.map((msg, index) => (
+                  <div
+                    key={index}
+                    style={{
+                      alignSelf:
+                        msg.role === "user" ? "flex-end" : "flex-start",
+                      background: msg.role === "user" ? "#2563eb" : "#222222",
+                      padding: "12px 14px",
+                      borderRadius: 12,
+                      maxWidth: "78%",
+                      lineHeight: 1.6,
+                      wordBreak: "break-word",
+                    }}
+                  >
+                    {msg.text}
                   </div>
                 ))
               )}
-            </div>
 
-            <div style={innerBox}>
-              <h3 style={{ marginBottom: 10 }}>Weights</h3>
-              {topicConfig.factors.map((factor) => (
-                <div key={factor.key} style={{ marginBottom: 8, color: "#cbd5e1" }}>
-                  • {factor.label}: {userConfig?.weights?.[factor.key] ?? factor.defaultWeight}
-                </div>
-              ))}
-            </div>
-          </div>
-        </section>
-
-        <section style={boxStyle}>
-          <h2 style={{ fontSize: 24, marginBottom: 14 }}>Negotiation Chat</h2>
-
-          <div
-            style={{
-              border: "1px solid #333",
-              borderRadius: 14,
-              minHeight: 280,
-              padding: 16,
-              background: "#0b0b0b",
-              marginBottom: 16,
-            }}
-          >
-            {messages.length === 0 ? (
-              <p style={{ color: "#94a3b8" }}>
-                Start the conversation. The chatbot will respond using the selected topic,
-                strategy, and your weight preferences.
-              </p>
-            ) : (
-              messages.map((item, index) => (
+              {isSending && (
                 <div
-                  key={index}
                   style={{
-                    marginBottom: 14,
-                    textAlign: item.role === "user" ? "right" : "left",
+                    alignSelf: "flex-start",
+                    background: "#222222",
+                    padding: "12px 14px",
+                    borderRadius: 12,
+                    maxWidth: "78%",
+                    lineHeight: 1.6,
+                    wordBreak: "break-word",
                   }}
                 >
-                  <div
-                    style={{
-                      display: "inline-block",
-                      maxWidth: "80%",
-                      padding: "12px 14px",
-                      borderRadius: 12,
-                      background: item.role === "user" ? "#1d4ed8" : "#1f2937",
-                    }}
-                  >
-                    {item.content}
-                  </div>
+                  Thinking...
                 </div>
-              ))
-            )}
-          </div>
+              )}
+            </div>
 
-          <div style={{ display: "flex", gap: 12 }}>
-            <input
-              value={message}
-              onChange={(e) => setMessage(e.target.value)}
-              placeholder={`Ask about your ${activeTopic} negotiation...`}
+            <div
               style={{
-                flex: 1,
-                padding: 12,
-                borderRadius: 10,
-                border: "1px solid #444",
-                background: "#000",
-                color: "white",
+                display: "flex",
+                gap: 10,
+                marginTop: 20,
+                flexWrap: "wrap",
               }}
-            />
-            <button onClick={handleSend} style={sendButton}>
-              Send
-            </button>
-          </div>
-        </section>
+            >
+              <input
+                value={message}
+                onChange={(e) => setMessage(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    void sendMessage();
+                  }
+                }}
+                placeholder="Type your negotiation message..."
+                style={{
+                  flex: 1,
+                  minWidth: 220,
+                  padding: 12,
+                  borderRadius: 10,
+                  border: "1px solid #444444",
+                  background: "#000000",
+                  color: "#ffffff",
+                  outline: "none",
+                }}
+              />
+              <button
+                onClick={() => {
+                  void sendMessage();
+                }}
+                disabled={isSending}
+                style={{
+                  background: "#2563eb",
+                  color: "#ffffff",
+                  border: "none",
+                  padding: "12px 18px",
+                  borderRadius: 10,
+                  cursor: isSending ? "not-allowed" : "pointer",
+                  fontWeight: 700,
+                  opacity: isSending ? 0.7 : 1,
+                }}
+              >
+                {isSending ? "Sending..." : "Send"}
+              </button>
+            </div>
+          </section>
+        </div>
       </div>
     </main>
   );
 }
-
-function generateBotReply({
-  userMessage,
-  topic,
-  strategy,
-  topFactors,
-  formValues,
-}: {
-  userMessage: string;
-  topic: TopicKey;
-  strategy: StrategyKey;
-  topFactors: string[];
-  formValues: Record<string, string>;
-}) {
-  const factorText = topFactors.length ? topFactors.join(" and ") : "your chosen priorities";
-  const userContext = Object.entries(formValues)
-    .map(([key, value]) => `${key}: ${value}`)
-    .join(", ");
-
-  const strategyLine =
-    strategy === "tough"
-      ? "I would take a firm position and push strongly for a better deal."
-      : strategy === "soft"
-      ? "I would keep the tone flexible and cooperative while trying to improve the outcome."
-      : strategy === "friendly"
-      ? "I would build rapport first and then negotiate gradually."
-      : strategy === "analytical"
-      ? "I would use detailed comparisons, trade-offs, and facts to support the negotiation."
-      : strategy === "urgent"
-      ? "I would create urgency and try to close the deal quickly."
-      : "I would use a balanced approach between firmness and flexibility.";
-
-  const topicLine =
-    topic === "car"
-      ? "For this car negotiation, I would compare price against reliability, safety, and long-term value."
-      : topic === "laptop"
-      ? "For this laptop negotiation, I would focus on performance, price, battery life, and portability."
-      : topic === "mobile"
-      ? "For this mobile negotiation, I would balance price with camera quality, performance, and battery life."
-      : topic === "job"
-      ? "For this job negotiation, I would weigh salary against benefits, growth, and work-life balance."
-      : "For this rent negotiation, I would compare rent price with location, amenities, and lease flexibility.";
-
-  return `You asked: "${userMessage}". ${topicLine} Your highest priorities are ${factorText}. ${strategyLine} Based on your current configuration (${userContext || "no extra details provided"}), I would guide the negotiation around those priorities first.`;
-}
-
-const boxStyle = {
-  border: "1px solid #333",
-  borderRadius: 16,
-  padding: 24,
-  background: "#111",
-  marginBottom: 24,
-};
-
-const innerBox = {
-  border: "1px solid #333",
-  borderRadius: 14,
-  padding: 16,
-  background: "#0b0b0b",
-};
-
-const sendButton = {
-  padding: "12px 18px",
-  borderRadius: 10,
-  border: "none",
-  background: "#2563eb",
-  color: "white",
-  fontWeight: 700,
-  cursor: "pointer",
-};

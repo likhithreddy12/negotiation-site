@@ -2,123 +2,198 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
+import {
+  DEFAULT_ADMIN_SETTINGS,
+  TOPIC_CONFIGS,
+  STRATEGIES,
+  type StrategyKey,
+  type TopicKey,
+} from "@/lib/negotiation-config";
+import type { WeightState } from "@/lib/negotiation-chat-engine";
 
-type FactorKey = "price" | "reliability" | "fuel" | "horsepower" | "safety";
-type StrategyKey =
-  | "tough"
-  | "soft"
-  | "friendly"
-  | "analytical"
-  | "urgent"
-  | "balanced";
+const TOPIC_OPTIONS: { key: TopicKey }[] = (Object.keys(TOPIC_CONFIGS) as TopicKey[]).map(
+  (key) => ({
+    key,
+  })
+);
 
-const FACTORS: { key: FactorKey; label: string; helper: string }[] = [
-  { key: "price", label: "Price / Budget", helper: "Discounts, total cost, best deal." },
-  { key: "reliability", label: "Reliability", helper: "Long-term dependability, fewer repairs." },
-  { key: "fuel", label: "Fuel Efficiency", helper: "Mileage (MPG), fuel cost over time." },
-  { key: "horsepower", label: "Engine Power (Horsepower)", helper: "Performance, acceleration, driving feel." },
-  { key: "safety", label: "Safety", helper: "Crash ratings, driver-assist, protection." },
-];
+const STRATEGY_DETAILS: Record<StrategyKey, { label: string; helper: string }> = {
+  tough: {
+    label: "Tough",
+    helper: "Firm, assertive, and hard-bargaining style.",
+  },
+  soft: {
+    label: "Soft",
+    helper: "Calm, flexible, and cooperative negotiation style.",
+  },
+  friendly: {
+    label: "Friendly",
+    helper: "Warm, approachable, and relationship-focused.",
+  },
+  analytical: {
+    label: "Analytical",
+    helper: "Logic-based, data-driven, and comparison-heavy.",
+  },
+  urgent: {
+    label: "Urgent",
+    helper: "Fast-paced, deadline-focused, and action-oriented.",
+  },
+  balanced: {
+    label: "Balanced",
+    helper: "Mix of firmness, flexibility, and practical trade-offs.",
+  },
+};
 
-const STRATEGIES: { key: StrategyKey; label: string; helper: string }[] = [
-  { key: "tough", label: "Tough", helper: "Firm, assertive, and hard-bargaining style." },
-  { key: "soft", label: "Soft", helper: "Calm, flexible, and cooperative negotiation style." },
-  { key: "friendly", label: "Friendly", helper: "Warm, approachable, and relationship-focused." },
-  { key: "analytical", label: "Analytical", helper: "Logic-based, data-driven, and comparison-heavy." },
-  { key: "urgent", label: "Urgent", helper: "Fast-paced, deadline-focused, and action-oriented." },
-  { key: "balanced", label: "Balanced", helper: "Mix of firmness, flexibility, and practical trade-offs." },
-];
+const TOPIC_HELPERS: Record<TopicKey, string> = {
+  car: "Compare the deal across vehicle cost, dependability, fuel use, safety, and power.",
+  laptop:
+    "Balance value with performance, battery life, portability, and overall computing needs.",
+  mobile:
+    "Focus on smartphone price, performance, camera quality, battery life, and daily usability.",
+  job: "Prioritize salary, benefits, growth, and long-term fit before accepting an offer.",
+  rent: "Evaluate rent price together with location, amenities, flexibility, and living quality.",
+};
 
-function normalizeTo100(raw: Record<FactorKey, number>) {
-  const keys = Object.keys(raw) as FactorKey[];
-  const sum = keys.reduce((acc, k) => acc + raw[k], 0);
+const DEFAULT_WEIGHTS: WeightState = {
+  factor1: 20,
+  factor2: 20,
+  factor3: 20,
+  factor4: 20,
+  factor5: 20,
+};
 
-  if (sum <= 0) {
-    const equal: Record<FactorKey, number> = {
-      price: 20,
-      reliability: 20,
-      fuel: 20,
-      horsepower: 20,
-      safety: 20,
+const ADMIN_PASSWORD = "professor123";
+
+function getStoredNegotiationState() {
+  if (typeof window === "undefined") {
+    return {
+      topic: DEFAULT_ADMIN_SETTINGS.activeTopic,
+      strategy: DEFAULT_ADMIN_SETTINGS.selectedStrategy,
+      weights: DEFAULT_WEIGHTS,
     };
-    return { normalized: equal, exact: equal };
   }
 
-  const exact = keys.reduce((acc, k) => {
-    acc[k] = (raw[k] / sum) * 100;
-    return acc;
-  }, {} as Record<FactorKey, number>);
+  let topic: TopicKey = DEFAULT_ADMIN_SETTINGS.activeTopic;
+  let strategy: StrategyKey = DEFAULT_ADMIN_SETTINGS.selectedStrategy;
+  let weights: WeightState = DEFAULT_WEIGHTS;
 
-  const rounded = keys.reduce((acc, k) => {
-    acc[k] = Math.round(exact[k]);
-    return acc;
-  }, {} as Record<FactorKey, number>);
+  const storedAdminSettings = window.localStorage.getItem("admin_settings");
+  const storedTopic = window.localStorage.getItem("selected_topic");
+  const storedStrategy = window.localStorage.getItem("selected_strategy");
+  const storedWeights = window.localStorage.getItem("topic_weights");
 
-  const roundedSum = keys.reduce((acc, k) => acc + rounded[k], 0);
+  if (storedAdminSettings) {
+    try {
+      const parsed = JSON.parse(storedAdminSettings) as {
+        activeTopic?: unknown;
+        selectedStrategy?: unknown;
+      };
+
+      if (isValidTopic(parsed.activeTopic)) {
+        topic = parsed.activeTopic;
+      }
+
+      if (isValidStrategy(parsed.selectedStrategy)) {
+        strategy = parsed.selectedStrategy;
+      }
+    } catch {}
+  }
+
+  if (isValidTopic(storedTopic)) {
+    topic = storedTopic;
+  }
+
+  if (isValidStrategy(storedStrategy)) {
+    strategy = storedStrategy;
+  }
+
+  if (storedWeights) {
+    try {
+      const parsed = JSON.parse(storedWeights) as Partial<WeightState>;
+      if (
+        typeof parsed.factor1 === "number" &&
+        typeof parsed.factor2 === "number" &&
+        typeof parsed.factor3 === "number" &&
+        typeof parsed.factor4 === "number" &&
+        typeof parsed.factor5 === "number"
+      ) {
+        weights = normalizeTo100(parsed as WeightState);
+      }
+    } catch {}
+  }
+
+  return { topic, strategy, weights };
+}
+
+function normalizeTo100(raw: WeightState) {
+  const keys = Object.keys(raw) as (keyof WeightState)[];
+  const sum = keys.reduce((acc, key) => acc + raw[key], 0);
+
+  if (sum <= 0) {
+    return DEFAULT_WEIGHTS;
+  }
+
+  const exact = keys.reduce((acc, key) => {
+    acc[key] = (raw[key] / sum) * 100;
+    return acc;
+  }, {} as WeightState);
+
+  const rounded = keys.reduce((acc, key) => {
+    acc[key] = Math.round(exact[key]);
+    return acc;
+  }, {} as WeightState);
+
+  const roundedSum = keys.reduce((acc, key) => acc + rounded[key], 0);
   const diff = 100 - roundedSum;
 
   if (diff !== 0) {
-    const largestKey = keys.reduce((best, k) => (exact[k] > exact[best] ? k : best), keys[0]);
+    const largestKey = keys.reduce((best, key) =>
+      exact[key] > exact[best] ? key : best
+    );
     rounded[largestKey] = Math.max(0, rounded[largestKey] + diff);
   }
 
-  return { normalized: rounded, exact };
+  return rounded;
 }
 
 function getSliderBackground(value: number) {
   return `linear-gradient(to right, #2563eb 0%, #2563eb ${value}%, #d1d5db ${value}%, #d1d5db 100%)`;
 }
 
-function formatStrategyLabel(strategy: StrategyKey) {
-  switch (strategy) {
-    case "tough":
-      return "Tough";
-    case "soft":
-      return "Soft";
-    case "friendly":
-      return "Friendly";
-    case "analytical":
-      return "Analytical";
-    case "urgent":
-      return "Urgent";
-    case "balanced":
-      return "Balanced";
-    default:
-      return "Balanced";
-  }
+function getTopicLabel(topic: TopicKey) {
+  return TOPIC_CONFIGS[topic].navTitle.replace(/^AI\s+/i, "").replace(/\s+Assistant$/i, "");
 }
 
-function ProfessorStrategyPanel() {
+function isValidTopic(value: unknown): value is TopicKey {
+  return typeof value === "string" && value in TOPIC_CONFIGS;
+}
+
+function isValidStrategy(value: unknown): value is StrategyKey {
+  return typeof value === "string" && STRATEGIES.includes(value as StrategyKey);
+}
+
+function ProfessorStrategyPanel({
+  selectedTopic,
+  onSelectTopic,
+  selectedStrategy,
+  onSelectStrategy,
+}: {
+  selectedTopic: TopicKey;
+  onSelectTopic: (topic: TopicKey) => void;
+  selectedStrategy: StrategyKey;
+  onSelectStrategy: (strategy: StrategyKey) => void;
+}) {
   const [showAdmin, setShowAdmin] = useState(false);
   const [password, setPassword] = useState("");
   const [isUnlocked, setIsUnlocked] = useState(false);
-  const [selectedStrategy, setSelectedStrategy] = useState<StrategyKey>("balanced");
-
-  const adminPassword = "professor123";
-
-  useEffect(() => {
-    const stored = localStorage.getItem("selected_strategy") as StrategyKey | null;
-    if (stored) {
-      setSelectedStrategy(stored);
-    }
-  }, []);
 
   function handleUnlock() {
-    if (password === adminPassword) {
+    if (password === ADMIN_PASSWORD) {
       setIsUnlocked(true);
-
-      const stored = localStorage.getItem("selected_strategy") as StrategyKey | null;
-      if (stored) {
-        setSelectedStrategy(stored);
-      }
-    } else {
-      alert("Incorrect admin password.");
+      return;
     }
-  }
 
-  function handleSelectStrategy(strategy: StrategyKey) {
-    setSelectedStrategy(strategy);
-    localStorage.setItem("selected_strategy", strategy);
+    alert("Incorrect admin password.");
   }
 
   return (
@@ -146,7 +221,7 @@ function ProfessorStrategyPanel() {
               Professor Strategy Control
             </div>
             <div style={{ fontSize: 13, color: "rgba(255,255,255,0.76)", marginTop: 4 }}>
-              Admin-only strategy selection for chatbot behavior.
+              Admin-only topic and strategy selection for chatbot behavior.
             </div>
           </div>
 
@@ -167,7 +242,8 @@ function ProfessorStrategyPanel() {
         </div>
 
         <div style={{ marginTop: 14, fontSize: 14, color: "#93c5fd", fontWeight: 700 }}>
-          Current Strategy: {formatStrategyLabel(selectedStrategy)}
+          Current Topic: {getTopicLabel(selectedTopic)} | Current Strategy:{" "}
+          {STRATEGY_DETAILS[selectedStrategy].label}
         </div>
 
         {showAdmin && !isUnlocked && (
@@ -215,42 +291,93 @@ function ProfessorStrategyPanel() {
         )}
 
         {showAdmin && isUnlocked && (
-          <div style={{ marginTop: 18 }}>
-            <div style={{ fontSize: 14, color: "#93c5fd", marginBottom: 12, fontWeight: 700 }}>
-              Selected Strategy: {formatStrategyLabel(selectedStrategy)}
+          <div style={{ marginTop: 18, display: "grid", gap: 18 }}>
+            <div>
+              <div style={{ fontSize: 14, color: "#93c5fd", marginBottom: 12, fontWeight: 700 }}>
+                Selected Topic: {getTopicLabel(selectedTopic)}
+              </div>
+
+              <div
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
+                  gap: 12,
+                }}
+              >
+                {TOPIC_OPTIONS.map((topic) => {
+                  const isActive = selectedTopic === topic.key;
+
+                  return (
+                    <button
+                      key={topic.key}
+                      onClick={() => onSelectTopic(topic.key)}
+                      style={{
+                        textAlign: "left",
+                        padding: 14,
+                        borderRadius: 14,
+                        border: isActive
+                          ? "2px solid #60a5fa"
+                          : "1px solid rgba(255,255,255,0.15)",
+                        background: isActive
+                          ? "rgba(37,99,235,0.22)"
+                          : "rgba(255,255,255,0.05)",
+                        color: "#ffffff",
+                        cursor: "pointer",
+                      }}
+                    >
+                      <div style={{ fontWeight: 900, fontSize: 15 }}>{getTopicLabel(topic.key)}</div>
+                      <div style={{ fontSize: 12, opacity: 0.82, marginTop: 4 }}>
+                        {TOPIC_HELPERS[topic.key]}
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
             </div>
 
-            <div
-              style={{
-                display: "grid",
-                gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
-                gap: 12,
-              }}
-            >
-              {STRATEGIES.map((strategy) => {
-                const isActive = selectedStrategy === strategy.key;
+            <div>
+              <div style={{ fontSize: 14, color: "#93c5fd", marginBottom: 12, fontWeight: 700 }}>
+                Selected Strategy: {STRATEGY_DETAILS[selectedStrategy].label}
+              </div>
 
-                return (
-                  <button
-                    key={strategy.key}
-                    onClick={() => handleSelectStrategy(strategy.key)}
-                    style={{
-                      textAlign: "left",
-                      padding: 14,
-                      borderRadius: 14,
-                      border: isActive ? "2px solid #60a5fa" : "1px solid rgba(255,255,255,0.15)",
-                      background: isActive ? "rgba(37,99,235,0.22)" : "rgba(255,255,255,0.05)",
-                      color: "#ffffff",
-                      cursor: "pointer",
-                    }}
-                  >
-                    <div style={{ fontWeight: 900, fontSize: 15 }}>{strategy.label}</div>
-                    <div style={{ fontSize: 12, opacity: 0.82, marginTop: 4 }}>
-                      {strategy.helper}
-                    </div>
-                  </button>
-                );
-              })}
+              <div
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
+                  gap: 12,
+                }}
+              >
+                {STRATEGIES.map((strategy) => {
+                  const isActive = selectedStrategy === strategy;
+
+                  return (
+                    <button
+                      key={strategy}
+                      onClick={() => onSelectStrategy(strategy)}
+                      style={{
+                        textAlign: "left",
+                        padding: 14,
+                        borderRadius: 14,
+                        border: isActive
+                          ? "2px solid #60a5fa"
+                          : "1px solid rgba(255,255,255,0.15)",
+                        background: isActive
+                          ? "rgba(37,99,235,0.22)"
+                          : "rgba(255,255,255,0.05)",
+                        color: "#ffffff",
+                        cursor: "pointer",
+                      }}
+                    >
+                      <div style={{ fontWeight: 900, fontSize: 15 }}>
+                        {STRATEGY_DETAILS[strategy].label}
+                      </div>
+                      <div style={{ fontSize: 12, opacity: 0.82, marginTop: 4 }}>
+                        {STRATEGY_DETAILS[strategy].helper}
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
             </div>
           </div>
         )}
@@ -259,26 +386,39 @@ function ProfessorStrategyPanel() {
   );
 }
 
-function CarConfigurationSection() {
+function ConfigurationSection({
+  selectedTopic,
+  selectedStrategy,
+  weights,
+  setWeights,
+}: {
+  selectedTopic: TopicKey;
+  selectedStrategy: StrategyKey;
+  weights: WeightState;
+  setWeights: (value: WeightState | ((prev: WeightState) => WeightState)) => void;
+}) {
   const router = useRouter();
+  const factors = TOPIC_CONFIGS[selectedTopic].factors.slice(0, 5);
+  const total = Object.values(weights).reduce((sum, value) => sum + value, 0);
 
-  const [raw, setRaw] = useState<Record<FactorKey, number>>({
-    price: 30,
-    reliability: 25,
-    fuel: 20,
-    safety: 15,
-    horsepower: 10,
-  });
-
-  const { normalized } = useMemo(() => normalizeTo100(raw), [raw]);
-  const total = Object.values(normalized).reduce((a, b) => a + b, 0);
-
-  function handleChange(key: FactorKey, next: number) {
-    setRaw((prev) => ({ ...prev, [key]: next }));
+  function handleChange(key: keyof WeightState, next: number) {
+    setWeights((prev) => normalizeTo100({ ...prev, [key]: next }));
   }
 
   function handleStart() {
-    localStorage.setItem("car_config_weights", JSON.stringify(normalized));
+    const normalized = normalizeTo100(weights);
+
+    localStorage.setItem("selected_topic", selectedTopic);
+    localStorage.setItem("selected_strategy", selectedStrategy);
+    localStorage.setItem("topic_weights", JSON.stringify(normalized));
+    localStorage.setItem(
+      "admin_settings",
+      JSON.stringify({
+        activeTopic: selectedTopic,
+        selectedStrategy,
+      })
+    );
+
     router.push("/start");
   }
 
@@ -295,7 +435,8 @@ function CarConfigurationSection() {
           marginBottom: 18,
         }}
       >
-        Configure what matters most to you. Weights automatically rebalance to total 100%.
+        Configure what matters most to you for the selected topic. Weights automatically rebalance
+        to total 100%.
       </p>
 
       <div
@@ -318,11 +459,11 @@ function CarConfigurationSection() {
         >
           <div>
             <div style={{ fontWeight: 900, fontSize: 24, color: "#000000" }}>
-              Car Configuration
+              {getTopicLabel(selectedTopic)} Configuration
             </div>
 
             <div style={{ fontSize: 13, color: "#374151", marginTop: 6 }}>
-              Adjust priorities across 5 factors (auto-normalized to 100%).
+              {TOPIC_CONFIGS[selectedTopic].heroSubtitle}
             </div>
           </div>
 
@@ -350,77 +491,82 @@ function CarConfigurationSection() {
             gap: 12,
           }}
         >
-          {FACTORS.map((f) => (
-            <div
-              key={f.key}
-              style={{
-                border: "1px solid #e5e7eb",
-                borderRadius: 16,
-                padding: 16,
-                background: "#ffffff",
-                boxShadow: "0 4px 14px rgba(0,0,0,0.06)",
-              }}
-            >
+          {factors.map((factor, index) => {
+            const weightKey = `factor${index + 1}` as keyof WeightState;
+
+            return (
               <div
+                key={factor.key}
                 style={{
-                  display: "flex",
-                  justifyContent: "space-between",
-                  gap: 12,
-                  alignItems: "center",
-                  flexWrap: "wrap",
+                  border: "1px solid #e5e7eb",
+                  borderRadius: 16,
+                  padding: 16,
+                  background: "#ffffff",
+                  boxShadow: "0 4px 14px rgba(0,0,0,0.06)",
                 }}
               >
-                <div style={{ flex: 1, minWidth: 180 }}>
-                  <div style={{ fontWeight: 900, fontSize: 15, color: "#000000" }}>{f.label}</div>
+                <div
+                  style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    gap: 12,
+                    alignItems: "center",
+                    flexWrap: "wrap",
+                  }}
+                >
+                  <div style={{ flex: 1, minWidth: 180 }}>
+                    <div style={{ fontWeight: 900, fontSize: 15, color: "#000000" }}>
+                      {factor.label}
+                    </div>
+
+                    <div
+                      style={{
+                        fontSize: 12,
+                        color: "#4b5563",
+                        marginTop: 4,
+                        lineHeight: 1.4,
+                      }}
+                    >
+                      Priority weight for this factor during negotiation.
+                    </div>
+                  </div>
 
                   <div
                     style={{
-                      fontSize: 12,
-                      color: "#4b5563",
-                      marginTop: 4,
-                      lineHeight: 1.4,
+                      minWidth: 58,
+                      textAlign: "right",
+                      fontWeight: 900,
+                      color: "#2563eb",
+                      fontSize: 16,
                     }}
                   >
-                    {f.helper}
+                    {weights[weightKey]}%
                   </div>
                 </div>
 
-                <div
-                  style={{
-                    minWidth: 58,
-                    textAlign: "right",
-                    fontWeight: 900,
-                    color: "#2563eb",
-                    fontSize: 16,
-                  }}
-                >
-                  {normalized[f.key]}%
+                <div style={{ marginTop: 12 }}>
+                  <input
+                    aria-label={factor.label}
+                    type="range"
+                    min={0}
+                    max={100}
+                    value={weights[weightKey]}
+                    onChange={(e) => handleChange(weightKey, Number(e.target.value))}
+                    style={{
+                      width: "100%",
+                      height: 10,
+                      borderRadius: 999,
+                      outline: "none",
+                      appearance: "none",
+                      WebkitAppearance: "none",
+                      background: getSliderBackground(weights[weightKey]),
+                      cursor: "pointer",
+                    }}
+                  />
                 </div>
               </div>
-
-              <div style={{ marginTop: 12 }}>
-                <input
-                  aria-label={f.label}
-                  type="range"
-                  min={0}
-                  max={100}
-                  value={raw[f.key]}
-                  onChange={(e) => handleChange(f.key, Number(e.target.value))}
-                  className="custom-slider"
-                  style={{
-                    width: "100%",
-                    height: 10,
-                    borderRadius: 999,
-                    outline: "none",
-                    appearance: "none",
-                    WebkitAppearance: "none",
-                    background: getSliderBackground(raw[f.key]),
-                    cursor: "pointer",
-                  }}
-                />
-              </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
 
         <div
@@ -441,7 +587,8 @@ function CarConfigurationSection() {
               maxWidth: 650,
             }}
           >
-            These preferences will be used by the negotiation chatbot to tailor strategy and recommendations.
+            These preferences and the professor-selected strategy will be used by the negotiation
+            chatbot throughout the conversation.
           </div>
 
           <button
@@ -466,6 +613,26 @@ function CarConfigurationSection() {
 }
 
 export default function Home() {
+  const initialState = getStoredNegotiationState();
+  const [selectedTopic, setSelectedTopic] = useState<TopicKey>(initialState.topic);
+  const [selectedStrategy, setSelectedStrategy] = useState<StrategyKey>(initialState.strategy);
+  const [weights, setWeights] = useState<WeightState>(initialState.weights);
+
+  useEffect(() => {
+    localStorage.setItem("selected_topic", selectedTopic);
+    localStorage.setItem("selected_strategy", selectedStrategy);
+    localStorage.setItem("topic_weights", JSON.stringify(normalizeTo100(weights)));
+    localStorage.setItem(
+      "admin_settings",
+      JSON.stringify({
+        activeTopic: selectedTopic,
+        selectedStrategy,
+      })
+    );
+  }, [selectedStrategy, selectedTopic, weights]);
+
+  const topicConfig = useMemo(() => TOPIC_CONFIGS[selectedTopic], [selectedTopic]);
+
   return (
     <main
       style={{
@@ -508,7 +675,12 @@ export default function Home() {
         </nav>
       </header>
 
-      <ProfessorStrategyPanel />
+      <ProfessorStrategyPanel
+        selectedTopic={selectedTopic}
+        onSelectTopic={setSelectedTopic}
+        selectedStrategy={selectedStrategy}
+        onSelectStrategy={setSelectedStrategy}
+      />
 
       <section style={{ marginTop: 60 }}>
         <h1
@@ -519,7 +691,7 @@ export default function Home() {
             lineHeight: 1.15,
           }}
         >
-          AI Sales Negotiation Agent
+          {topicConfig.heroTitle}
         </h1>
 
         <p
@@ -530,8 +702,8 @@ export default function Home() {
             color: "rgba(255,255,255,0.82)",
           }}
         >
-          A controlled negotiation system that follows a defined strategy and uses complete user configuration weights
-          for consistent negotiation behavior.
+          {topicConfig.heroSubtitle} The chatbot remembers the professor-selected strategy and
+          your full weightage for every reply.
         </p>
 
         <div style={{ display: "flex", gap: 12, marginTop: 22, flexWrap: "wrap" }}>
@@ -552,15 +724,20 @@ export default function Home() {
         </div>
       </section>
 
-      <CarConfigurationSection />
+      <ConfigurationSection
+        selectedTopic={selectedTopic}
+        selectedStrategy={selectedStrategy}
+        weights={weights}
+        setWeights={setWeights}
+      />
 
       <section id="how" style={{ marginTop: 70 }}>
         <h2 style={{ fontSize: 28, color: "#ffffff" }}>How it Works</h2>
         <ol style={{ lineHeight: 1.8, marginTop: 12, color: "rgba(255,255,255,0.82)" }}>
           <li>User configures all factor weights and starts negotiation.</li>
-          <li>Professor can select the active negotiation strategy from the first page.</li>
+          <li>Professor can select the active topic and negotiation strategy from the first page.</li>
           <li>The chatbot uses the selected strategy plus the full weighted profile.</li>
-          <li>Admin can update the strategy whenever needed.</li>
+          <li>Chat replies stay anchored on the highest-priority factors during the conversation.</li>
         </ol>
       </section>
 

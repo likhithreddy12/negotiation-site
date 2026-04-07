@@ -2,95 +2,165 @@
 
 import { useRouter } from "next/navigation";
 
-export default function SelectAvatar() {
+type AvatarChoice = {
+  key: "male" | "female";
+  label: string;
+  image: string;
+  description: string;
+};
+
+const AVATARS: AvatarChoice[] = [
+  {
+    key: "male",
+    label: "Male Chat Agent",
+    image: "/agents/male.png",
+    description: "Professional male negotiation assistant.",
+  },
+  {
+    key: "female",
+    label: "Female Chat Agent",
+    image: "/agents/female.png",
+    description: "Professional female negotiation assistant.",
+  },
+];
+
+export default function SelectAvatarPage() {
   const router = useRouter();
 
-  const chooseAvatar = (type: "male" | "female") => {
-    const intake = localStorage.getItem("negotiation_intake");
-    if (!intake) {
-      router.replace("/start");
+  const handleSelect = (avatar: "male" | "female") => {
+    const existing = localStorage.getItem("negotiation_intake");
+
+    if (!existing) {
+      router.push("/start");
       return;
     }
 
-    const parsed = JSON.parse(intake);
-    parsed.avatar = type;
+    const parsed = JSON.parse(existing);
 
-    // ✅ store back into intake
-    localStorage.setItem("negotiation_intake", JSON.stringify(parsed));
+    localStorage.setItem(
+      "negotiation_intake",
+      JSON.stringify({
+        ...parsed,
+        avatar,
+      })
+    );
 
-    // ✅ also store separately for easy use in chatbot
-    localStorage.setItem("selected_agent", type);
-
-    // ✅ go to chat page (your chat is /demo)
     router.push("/demo");
   };
 
   return (
-    <div style={{ textAlign: "center", padding: 40 }}>
-      <h1 style={{ fontSize: 32, fontWeight: 800, color: "#fff" }}>
-        Choose Your AI Negotiation Assistant
-      </h1>
-      <p style={{ marginTop: 10, color: "rgba(255,255,255,0.75)" }}>
-        Select an agent to begin your negotiation session.
-      </p>
-
-      <div
-        style={{
-          display: "flex",
-          justifyContent: "center",
-          flexWrap: "wrap",
-          gap: 30,
-          marginTop: 40,
-        }}
-      >
-        {/* Male Bot */}
+    <main
+      style={{
+        minHeight: "100vh",
+        background: "#000",
+        color: "#fff",
+        padding: "40px 16px",
+        fontFamily:
+          "Arial, sans-serif, system-ui, -apple-system, BlinkMacSystemFont, Segoe UI, sans-serif",
+      }}
+    >
+      <div style={{ maxWidth: 1100, margin: "0 auto" }}>
         <div
-          onClick={() => chooseAvatar("male")}
           style={{
-            cursor: "pointer",
-            padding: 18,
-            border: "1px solid rgba(255,255,255,0.25)",
-            borderRadius: 16,
-            width: 240,
-            background: "rgba(255,255,255,0.06)",
-            boxShadow: "0 10px 24px rgba(0,0,0,0.25)",
+            textAlign: "center",
+            marginBottom: 30,
           }}
         >
-          <img
-            src="/agents/male.png"
-            alt="Male AI"
-            style={{ width: "100%", borderRadius: 14, background: "#fff" }}
-          />
-          <h3 style={{ marginTop: 12, color: "#fff" }}>Male AI</h3>
-          <p style={{ marginTop: 6, fontSize: 13, color: "rgba(255,255,255,0.75)" }}>
-            Direct, confident, and decisive negotiation style.
+          <h1 style={{ fontSize: 32, fontWeight: 700, marginBottom: 10 }}>
+            Choose Your Chat Agent
+          </h1>
+          <p style={{ color: "#d1d5db" }}>
+            Select the avatar you want for the negotiation chatbot.
           </p>
         </div>
 
-        {/* Female Bot */}
         <div
-          onClick={() => chooseAvatar("female")}
           style={{
-            cursor: "pointer",
-            padding: 18,
-            border: "1px solid rgba(255,255,255,0.25)",
-            borderRadius: 16,
-            width: 240,
-            background: "rgba(255,255,255,0.06)",
-            boxShadow: "0 10px 24px rgba(0,0,0,0.25)",
+            display: "grid",
+            gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))",
+            gap: 24,
+            alignItems: "stretch",
           }}
         >
-          <img
-            src="/agents/female.png"
-            alt="Female AI"
-            style={{ width: "100%", borderRadius: 14, background: "#fff" }}
-          />
-          <h3 style={{ marginTop: 12, color: "#fff" }}>Female AI</h3>
-          <p style={{ marginTop: 6, fontSize: 13, color: "rgba(255,255,255,0.75)" }}>
-            Collaborative, empathetic, and persuasive negotiation style.
-          </p>
+          {AVATARS.map((avatar) => (
+            <div
+              key={avatar.key}
+              style={{
+                background: "#0d0d0f",
+                border: "1px solid #2a2a2f",
+                borderRadius: 20,
+                padding: 22,
+                display: "flex",
+                flexDirection: "column",
+                alignItems: "center",
+                textAlign: "center",
+                minHeight: 480,
+                width: "100%",
+                boxSizing: "border-box",
+              }}
+            >
+              <div
+                style={{
+                  width: "100%",
+                  maxWidth: 240,
+                  height: 260,
+                  borderRadius: 16,
+                  overflow: "hidden",
+                  background: "#111827",
+                  border: "1px solid #374151",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  marginBottom: 18,
+                }}
+              >
+                <img
+                  src={avatar.image}
+                  alt={avatar.label}
+                  style={{
+                    width: "100%",
+                    height: "100%",
+                    objectFit: "cover",
+                    display: "block",
+                  }}
+                />
+              </div>
+
+              <h2 style={{ fontSize: 24, fontWeight: 700, marginBottom: 8 }}>
+                {avatar.label}
+              </h2>
+
+              <p
+                style={{
+                  color: "#d1d5db",
+                  lineHeight: 1.7,
+                  marginBottom: 20,
+                  maxWidth: 260,
+                }}
+              >
+                {avatar.description}
+              </p>
+
+              <button
+                onClick={() => handleSelect(avatar.key)}
+                style={{
+                  marginTop: "auto",
+                  width: "100%",
+                  background: "#2563eb",
+                  color: "#fff",
+                  border: "none",
+                  borderRadius: 12,
+                  padding: "12px 14px",
+                  fontWeight: 700,
+                  cursor: "pointer",
+                }}
+              >
+                Select {avatar.key === "male" ? "Male" : "Female"} Agent
+              </button>
+            </div>
+          ))}
         </div>
       </div>
-    </div>
+    </main>
   );
 }
