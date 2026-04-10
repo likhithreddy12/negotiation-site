@@ -1,21 +1,16 @@
+// frontend/src/app/page.tsx
 "use client";
 
+import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   DEFAULT_ADMIN_SETTINGS,
   TOPIC_CONFIGS,
-  STRATEGIES,
   type StrategyKey,
   type TopicKey,
-} from "@/lib/negotiation-config";
-import type { WeightState } from "@/lib/negotiation-chat-engine";
-
-const TOPIC_OPTIONS: { key: TopicKey }[] = (Object.keys(TOPIC_CONFIGS) as TopicKey[]).map(
-  (key) => ({
-    key,
-  })
-);
+} from "../lib/negotiation-config";
+import type { WeightState } from "../lib/negotiation-chat-engine";
 
 const STRATEGY_DETAILS: Record<StrategyKey, { label: string; helper: string }> = {
   tough: {
@@ -44,16 +39,6 @@ const STRATEGY_DETAILS: Record<StrategyKey, { label: string; helper: string }> =
   },
 };
 
-const TOPIC_HELPERS: Record<TopicKey, string> = {
-  car: "Compare the deal across vehicle cost, dependability, fuel use, safety, and power.",
-  laptop:
-    "Balance value with performance, battery life, portability, and overall computing needs.",
-  mobile:
-    "Focus on smartphone price, performance, camera quality, battery life, and daily usability.",
-  job: "Prioritize salary, benefits, growth, and long-term fit before accepting an offer.",
-  rent: "Evaluate rent price together with location, amenities, flexibility, and living quality.",
-};
-
 const DEFAULT_WEIGHTS: WeightState = {
   factor1: 20,
   factor2: 20,
@@ -62,70 +47,19 @@ const DEFAULT_WEIGHTS: WeightState = {
   factor5: 20,
 };
 
-const ADMIN_PASSWORD = "professor123";
+type NegotiationState = {
+  selectedTopic: TopicKey;
+  selectedStrategy: StrategyKey;
+  weights: WeightState;
+};
 
-function getStoredNegotiationState() {
-  if (typeof window === "undefined") {
-    return {
-      topic: DEFAULT_ADMIN_SETTINGS.activeTopic,
-      strategy: DEFAULT_ADMIN_SETTINGS.selectedStrategy,
-      weights: DEFAULT_WEIGHTS,
-    };
-  }
+const DEFAULT_NEGOTIATION_STATE: NegotiationState = {
+  selectedTopic: DEFAULT_ADMIN_SETTINGS.activeTopic,
+  selectedStrategy: DEFAULT_ADMIN_SETTINGS.selectedStrategy,
+  weights: DEFAULT_WEIGHTS,
+};
 
-  let topic: TopicKey = DEFAULT_ADMIN_SETTINGS.activeTopic;
-  let strategy: StrategyKey = DEFAULT_ADMIN_SETTINGS.selectedStrategy;
-  let weights: WeightState = DEFAULT_WEIGHTS;
-
-  const storedAdminSettings = window.localStorage.getItem("admin_settings");
-  const storedTopic = window.localStorage.getItem("selected_topic");
-  const storedStrategy = window.localStorage.getItem("selected_strategy");
-  const storedWeights = window.localStorage.getItem("topic_weights");
-
-  if (storedAdminSettings) {
-    try {
-      const parsed = JSON.parse(storedAdminSettings) as {
-        activeTopic?: unknown;
-        selectedStrategy?: unknown;
-      };
-
-      if (isValidTopic(parsed.activeTopic)) {
-        topic = parsed.activeTopic;
-      }
-
-      if (isValidStrategy(parsed.selectedStrategy)) {
-        strategy = parsed.selectedStrategy;
-      }
-    } catch {}
-  }
-
-  if (isValidTopic(storedTopic)) {
-    topic = storedTopic;
-  }
-
-  if (isValidStrategy(storedStrategy)) {
-    strategy = storedStrategy;
-  }
-
-  if (storedWeights) {
-    try {
-      const parsed = JSON.parse(storedWeights) as Partial<WeightState>;
-      if (
-        typeof parsed.factor1 === "number" &&
-        typeof parsed.factor2 === "number" &&
-        typeof parsed.factor3 === "number" &&
-        typeof parsed.factor4 === "number" &&
-        typeof parsed.factor5 === "number"
-      ) {
-        weights = normalizeTo100(parsed as WeightState);
-      }
-    } catch {}
-  }
-
-  return { topic, strategy, weights };
-}
-
-function normalizeTo100(raw: WeightState) {
+function normalizeTo100(raw: WeightState): WeightState {
   const keys = Object.keys(raw) as (keyof WeightState)[];
   const sum = keys.reduce((acc, key) => acc + raw[key], 0);
 
@@ -161,7 +95,9 @@ function getSliderBackground(value: number) {
 }
 
 function getTopicLabel(topic: TopicKey) {
-  return TOPIC_CONFIGS[topic].navTitle.replace(/^AI\s+/i, "").replace(/\s+Assistant$/i, "");
+  return TOPIC_CONFIGS[topic].navTitle
+    .replace(/^AI\s+/i, "")
+    .replace(/\s+Assistant$/i, "");
 }
 
 function isValidTopic(value: unknown): value is TopicKey {
@@ -169,33 +105,102 @@ function isValidTopic(value: unknown): value is TopicKey {
 }
 
 function isValidStrategy(value: unknown): value is StrategyKey {
-  return typeof value === "string" && STRATEGIES.includes(value as StrategyKey);
+  return (
+    typeof value === "string" &&
+    ["tough", "soft", "friendly", "analytical", "urgent", "balanced"].includes(value)
+  );
+}
+
+function buildNegotiationState(): NegotiationState {
+  if (typeof window === "undefined") {
+    return DEFAULT_NEGOTIATION_STATE;
+  }
+
+  let selectedTopic: TopicKey = DEFAULT_ADMIN_SETTINGS.activeTopic;
+  let selectedStrategy: StrategyKey = DEFAULT_ADMIN_SETTINGS.selectedStrategy;
+  let weights: WeightState = DEFAULT_WEIGHTS;
+
+  const storedAdminSettings = window.localStorage.getItem("admin_settings");
+  const storedTopic = window.localStorage.getItem("selected_topic");
+  const storedStrategy = window.localStorage.getItem("selected_strategy");
+  const storedWeights = window.localStorage.getItem("topic_weights");
+
+  if (storedAdminSettings) {
+    try {
+      const parsed = JSON.parse(storedAdminSettings) as {
+        activeTopic?: unknown;
+        selectedStrategy?: unknown;
+      };
+
+      if (isValidTopic(parsed.activeTopic)) {
+        selectedTopic = parsed.activeTopic;
+      }
+
+      if (isValidStrategy(parsed.selectedStrategy)) {
+        selectedStrategy = parsed.selectedStrategy;
+      }
+    } catch {
+      // ignore invalid localStorage data
+    }
+  }
+
+  if (isValidTopic(storedTopic)) {
+    selectedTopic = storedTopic;
+  }
+
+  if (isValidStrategy(storedStrategy)) {
+    selectedStrategy = storedStrategy;
+  }
+
+  if (storedWeights) {
+    try {
+      const parsed = JSON.parse(storedWeights) as Partial<WeightState>;
+
+      if (
+        typeof parsed.factor1 === "number" &&
+        typeof parsed.factor2 === "number" &&
+        typeof parsed.factor3 === "number" &&
+        typeof parsed.factor4 === "number" &&
+        typeof parsed.factor5 === "number"
+      ) {
+        weights = normalizeTo100(parsed as WeightState);
+      }
+    } catch {
+      // ignore invalid localStorage data
+    }
+  }
+
+  return { selectedTopic, selectedStrategy, weights };
+}
+
+function writeNegotiationState(nextState: NegotiationState) {
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  const normalized = normalizeTo100(nextState.weights);
+
+  window.localStorage.setItem("selected_topic", nextState.selectedTopic);
+  window.localStorage.setItem("selected_strategy", nextState.selectedStrategy);
+  window.localStorage.setItem("topic_weights", JSON.stringify(normalized));
+  window.localStorage.setItem(
+    "admin_settings",
+    JSON.stringify({
+      activeTopic: nextState.selectedTopic,
+      selectedStrategy: nextState.selectedStrategy,
+    })
+  );
+
+  window.dispatchEvent(new Event("negotiation-state-change"));
 }
 
 function ProfessorStrategyPanel({
   selectedTopic,
-  onSelectTopic,
   selectedStrategy,
-  onSelectStrategy,
 }: {
   selectedTopic: TopicKey;
-  onSelectTopic: (topic: TopicKey) => void;
   selectedStrategy: StrategyKey;
-  onSelectStrategy: (strategy: StrategyKey) => void;
 }) {
-  const [showAdmin, setShowAdmin] = useState(false);
-  const [password, setPassword] = useState("");
-  const [isUnlocked, setIsUnlocked] = useState(false);
-
-  function handleUnlock() {
-    if (password === ADMIN_PASSWORD) {
-      setIsUnlocked(true);
-      return;
-    }
-
-    alert("Incorrect admin password.");
-  }
-
   return (
     <section style={{ marginTop: 24 }}>
       <div
@@ -221,166 +226,30 @@ function ProfessorStrategyPanel({
               Professor Strategy Control
             </div>
             <div style={{ fontSize: 13, color: "rgba(255,255,255,0.76)", marginTop: 4 }}>
-              Admin-only topic and strategy selection for chatbot behavior.
+              Topic and strategy are managed from the separate admin page.
             </div>
           </div>
 
-          <button
-            onClick={() => setShowAdmin((prev) => !prev)}
+          <Link
+            href="/admin"
             style={{
+              display: "inline-block",
               padding: "10px 14px",
               borderRadius: 10,
               background: "#2563eb",
               color: "#ffffff",
-              border: "none",
+              textDecoration: "none",
               fontWeight: 800,
-              cursor: "pointer",
             }}
           >
-            {showAdmin ? "Hide Admin Panel" : "Admin Access"}
-          </button>
+            Admin Access
+          </Link>
         </div>
 
         <div style={{ marginTop: 14, fontSize: 14, color: "#93c5fd", fontWeight: 700 }}>
           Current Topic: {getTopicLabel(selectedTopic)} | Current Strategy:{" "}
           {STRATEGY_DETAILS[selectedStrategy].label}
         </div>
-
-        {showAdmin && !isUnlocked && (
-          <div
-            style={{
-              marginTop: 16,
-              display: "flex",
-              gap: 12,
-              flexWrap: "wrap",
-              alignItems: "center",
-            }}
-          >
-            <input
-              type="password"
-              placeholder="Enter admin password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              style={{
-                flex: 1,
-                minWidth: 220,
-                padding: "12px 14px",
-                borderRadius: 10,
-                border: "1px solid rgba(255,255,255,0.18)",
-                background: "#111827",
-                color: "#ffffff",
-                outline: "none",
-              }}
-            />
-
-            <button
-              onClick={handleUnlock}
-              style={{
-                padding: "12px 16px",
-                borderRadius: 10,
-                background: "#ffffff",
-                color: "#000000",
-                border: "none",
-                fontWeight: 800,
-                cursor: "pointer",
-              }}
-            >
-              Unlock
-            </button>
-          </div>
-        )}
-
-        {showAdmin && isUnlocked && (
-          <div style={{ marginTop: 18, display: "grid", gap: 18 }}>
-            <div>
-              <div style={{ fontSize: 14, color: "#93c5fd", marginBottom: 12, fontWeight: 700 }}>
-                Selected Topic: {getTopicLabel(selectedTopic)}
-              </div>
-
-              <div
-                style={{
-                  display: "grid",
-                  gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
-                  gap: 12,
-                }}
-              >
-                {TOPIC_OPTIONS.map((topic) => {
-                  const isActive = selectedTopic === topic.key;
-
-                  return (
-                    <button
-                      key={topic.key}
-                      onClick={() => onSelectTopic(topic.key)}
-                      style={{
-                        textAlign: "left",
-                        padding: 14,
-                        borderRadius: 14,
-                        border: isActive
-                          ? "2px solid #60a5fa"
-                          : "1px solid rgba(255,255,255,0.15)",
-                        background: isActive
-                          ? "rgba(37,99,235,0.22)"
-                          : "rgba(255,255,255,0.05)",
-                        color: "#ffffff",
-                        cursor: "pointer",
-                      }}
-                    >
-                      <div style={{ fontWeight: 900, fontSize: 15 }}>{getTopicLabel(topic.key)}</div>
-                      <div style={{ fontSize: 12, opacity: 0.82, marginTop: 4 }}>
-                        {TOPIC_HELPERS[topic.key]}
-                      </div>
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-
-            <div>
-              <div style={{ fontSize: 14, color: "#93c5fd", marginBottom: 12, fontWeight: 700 }}>
-                Selected Strategy: {STRATEGY_DETAILS[selectedStrategy].label}
-              </div>
-
-              <div
-                style={{
-                  display: "grid",
-                  gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
-                  gap: 12,
-                }}
-              >
-                {STRATEGIES.map((strategy) => {
-                  const isActive = selectedStrategy === strategy;
-
-                  return (
-                    <button
-                      key={strategy}
-                      onClick={() => onSelectStrategy(strategy)}
-                      style={{
-                        textAlign: "left",
-                        padding: 14,
-                        borderRadius: 14,
-                        border: isActive
-                          ? "2px solid #60a5fa"
-                          : "1px solid rgba(255,255,255,0.15)",
-                        background: isActive
-                          ? "rgba(37,99,235,0.22)"
-                          : "rgba(255,255,255,0.05)",
-                        color: "#ffffff",
-                        cursor: "pointer",
-                      }}
-                    >
-                      <div style={{ fontWeight: 900, fontSize: 15 }}>
-                        {STRATEGY_DETAILS[strategy].label}
-                      </div>
-                      <div style={{ fontSize: 12, opacity: 0.82, marginTop: 4 }}>
-                        {STRATEGY_DETAILS[strategy].helper}
-                      </div>
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-          </div>
-        )}
       </div>
     </section>
   );
@@ -390,35 +259,27 @@ function ConfigurationSection({
   selectedTopic,
   selectedStrategy,
   weights,
-  setWeights,
+  onWeightsChange,
 }: {
   selectedTopic: TopicKey;
   selectedStrategy: StrategyKey;
   weights: WeightState;
-  setWeights: (value: WeightState | ((prev: WeightState) => WeightState)) => void;
+  onWeightsChange: (weights: WeightState) => void;
 }) {
   const router = useRouter();
   const factors = TOPIC_CONFIGS[selectedTopic].factors.slice(0, 5);
   const total = Object.values(weights).reduce((sum, value) => sum + value, 0);
 
   function handleChange(key: keyof WeightState, next: number) {
-    setWeights((prev) => normalizeTo100({ ...prev, [key]: next }));
+    onWeightsChange(normalizeTo100({ ...weights, [key]: next }));
   }
 
   function handleStart() {
-    const normalized = normalizeTo100(weights);
-
-    localStorage.setItem("selected_topic", selectedTopic);
-    localStorage.setItem("selected_strategy", selectedStrategy);
-    localStorage.setItem("topic_weights", JSON.stringify(normalized));
-    localStorage.setItem(
-      "admin_settings",
-      JSON.stringify({
-        activeTopic: selectedTopic,
-        selectedStrategy,
-      })
-    );
-
+    writeNegotiationState({
+      selectedTopic,
+      selectedStrategy,
+      weights,
+    });
     router.push("/start");
   }
 
@@ -613,23 +474,27 @@ function ConfigurationSection({
 }
 
 export default function Home() {
-  const initialState = getStoredNegotiationState();
-  const [selectedTopic, setSelectedTopic] = useState<TopicKey>(initialState.topic);
-  const [selectedStrategy, setSelectedStrategy] = useState<StrategyKey>(initialState.strategy);
-  const [weights, setWeights] = useState<WeightState>(initialState.weights);
+  const [negotiationState, setNegotiationState] = useState<NegotiationState>(
+    DEFAULT_NEGOTIATION_STATE
+  );
 
   useEffect(() => {
-    localStorage.setItem("selected_topic", selectedTopic);
-    localStorage.setItem("selected_strategy", selectedStrategy);
-    localStorage.setItem("topic_weights", JSON.stringify(normalizeTo100(weights)));
-    localStorage.setItem(
-      "admin_settings",
-      JSON.stringify({
-        activeTopic: selectedTopic,
-        selectedStrategy,
-      })
-    );
-  }, [selectedStrategy, selectedTopic, weights]);
+    const syncState = () => {
+      setNegotiationState(buildNegotiationState());
+    };
+
+    syncState();
+
+    window.addEventListener("storage", syncState);
+    window.addEventListener("negotiation-state-change", syncState);
+
+    return () => {
+      window.removeEventListener("storage", syncState);
+      window.removeEventListener("negotiation-state-change", syncState);
+    };
+  }, []);
+
+  const { selectedTopic, selectedStrategy, weights } = negotiationState;
 
   const topicConfig = useMemo(() => TOPIC_CONFIGS[selectedTopic], [selectedTopic]);
 
@@ -661,6 +526,7 @@ export default function Home() {
             display: "flex",
             gap: 18,
             flexWrap: "wrap",
+            alignItems: "center",
           }}
         >
           <a href="#features" style={{ color: "rgba(255,255,255,0.88)", textDecoration: "none" }}>
@@ -672,15 +538,22 @@ export default function Home() {
           <a href="#contact" style={{ color: "rgba(255,255,255,0.88)", textDecoration: "none" }}>
             Contact
           </a>
+          <Link
+            href="/admin"
+            style={{
+              display: "inline-block",
+              padding: "10px 16px",
+              borderRadius: 12,
+              background: "#2563eb",
+              color: "#ffffff",
+              textDecoration: "none",
+              fontWeight: 800,
+            }}
+          >
+            Admin Access
+          </Link>
         </nav>
       </header>
-
-      <ProfessorStrategyPanel
-        selectedTopic={selectedTopic}
-        onSelectTopic={setSelectedTopic}
-        selectedStrategy={selectedStrategy}
-        onSelectStrategy={setSelectedStrategy}
-      />
 
       <section style={{ marginTop: 60 }}>
         <h1
@@ -702,8 +575,8 @@ export default function Home() {
             color: "rgba(255,255,255,0.82)",
           }}
         >
-          {topicConfig.heroSubtitle} The chatbot remembers the professor-selected strategy and
-          your full weightage for every reply.
+          {topicConfig.heroSubtitle} The chatbot remembers the professor-selected strategy and your
+          full weightage for every reply.
         </p>
 
         <div style={{ display: "flex", gap: 12, marginTop: 22, flexWrap: "wrap" }}>
@@ -728,14 +601,23 @@ export default function Home() {
         selectedTopic={selectedTopic}
         selectedStrategy={selectedStrategy}
         weights={weights}
-        setWeights={setWeights}
+        onWeightsChange={(nextWeights) => {
+          const nextState = {
+            selectedTopic,
+            selectedStrategy,
+            weights: nextWeights,
+          };
+
+          setNegotiationState(nextState);
+          writeNegotiationState(nextState);
+        }}
       />
 
       <section id="how" style={{ marginTop: 70 }}>
         <h2 style={{ fontSize: 28, color: "#ffffff" }}>How it Works</h2>
         <ol style={{ lineHeight: 1.8, marginTop: 12, color: "rgba(255,255,255,0.82)" }}>
           <li>User configures all factor weights and starts negotiation.</li>
-          <li>Professor can select the active topic and negotiation strategy from the first page.</li>
+          <li>Professor can select the active topic and negotiation strategy from the separate admin page.</li>
           <li>The chatbot uses the selected strategy plus the full weighted profile.</li>
           <li>Chat replies stay anchored on the highest-priority factors during the conversation.</li>
         </ol>
